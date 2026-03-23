@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Research Scientist</title>
+    <meta name="description" content="Search, Analyze, and Chat with Research Papers using AI">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0a1a;
+            --bg-secondary: #12122a;
+            --bg-card: rgba(255, 255, 255, 0.04);
+            --glass: rgba(255, 255, 255, 0.06);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --accent: #00d2ff;
+            --accent2: #7b2ff7;
+            --accent-grad: linear-gradient(135deg, #00d2ff, #7b2ff7);
+            --text: #e8e8f0;
+            --text-dim: #8888aa;
+            --text-bright: #ffffff;
+            --success: #00e676;
+            --error: #ff5252;
+            --info: #40c4ff;
+            --warning: #ffab40;
+            --sidebar-w: 260px;
+            --radius: 14px;
+            --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 30% 20%, rgba(0, 210, 255, 0.05) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(123, 47, 247, 0.05) 0%, transparent 50%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: var(--sidebar-w);
+            height: 100vh;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--glass-border);
+            padding: 24px 16px;
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+        }
+
+        .sidebar-logo {
+            text-align: center;
+            padding: 16px 0 32px;
+            border-bottom: 1px solid var(--glass-border);
+            margin-bottom: 24px;
+        }
+
+        .sidebar-logo h1 {
+            font-size: 1.3em;
+            font-weight: 800;
+            background: var(--accent-grad);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .sidebar-logo p {
+            font-size: 0.75em;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        .nav-items {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: var(--transition);
+            color: var(--text-dim);
+            font-weight: 500;
+            font-size: 0.9em;
+            position: relative;
+            border: 1px solid transparent;
+        }
+
+        .nav-item:hover {
+            background: var(--glass);
+            color: var(--text);
+        }
+
+        .nav-item.active {
+            background: rgba(0, 210, 255, 0.1);
+            color: var(--accent);
+            border-color: rgba(0, 210, 255, 0.2);
+        }
+
+        .nav-item.active::before {
+            content: '';
+            position: absolute;
+            left: -16px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 60%;
+            background: var(--accent-grad);
+            border-radius: 0 4px 4px 0;
+        }
+
+        .nav-icon {
+            font-size: 1.2em;
+            width: 24px;
+            text-align: center;
+        }
+
+        .sidebar-footer {
+            padding-top: 16px;
+            border-top: 1px solid var(--glass-border);
+        }
+
+        .sidebar-footer .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.75em;
+            color: var(--text-dim);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        /* Main Content */
+        .main {
+            margin-left: var(--sidebar-w);
+            padding: 32px;
+            position: relative;
+            z-index: 1;
+            min-height: 100vh;
+        }
+
+        .page-header {
+            margin-bottom: 32px;
+        }
+
+        .page-header h2 {
+            font-size: 1.8em;
+            font-weight: 700;
+            color: var(--text-bright);
+            margin-bottom: 4px;
+        }
+
+        .page-header p {
+            color: var(--text-dim);
+            font-size: 0.9em;
+        }
+
+        /* Glass Card */
+        .glass-card {
+            background: var(--bg-card);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius);
+            padding: 24px;
+            backdrop-filter: blur(12px);
+            transition: var(--transition);
+        }
+
+        .glass-card:hover {
+            border-color: rgba(0, 210, 255, 0.15);
+        }
+
+        /* Tab content */
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Form elements */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 0.85em;
+            color: var(--text);
+            letter-spacing: 0.3px;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9em;
+            transition: var(--transition);
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(0, 210, 255, 0.1);
+        }
+
+        input::placeholder,
+        textarea::placeholder {
+            color: var(--text-dim);
+        }
+
+        .filter-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85em;
+            cursor: pointer;
+            color: var(--text-dim);
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            accent-color: var(--accent);
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 10px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--accent-grad);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 210, 255, 0.25);
+        }
+
+        .btn-secondary {
+            background: var(--glass);
+            color: var(--text);
+            border: 1px solid var(--glass-border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--accent);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #00e676, #00c853);
+            color: #000;
+        }
+
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 0.8em;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        /* Paper Cards */
+        .results {
+            margin-top: 24px;
+        }
+
+        .paper-card {
+            background: var(--bg-card);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 14px;
+            transition: var(--transition);
+            animation: slideUp 0.4s ease backwards;
+            border-left: 3px solid;
+            border-image: var(--accent-grad) 1;
+        }
+
+        .paper-card:hover {
+            transform: translateX(4px);
+            border-color: rgba(0, 210, 255, 0.2);
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .paper-card h3 {
+            font-size: 1em;
+            font-weight: 600;
+            color: var(--text-bright);
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+
+        .paper-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .paper-meta span {
+            font-size: 0.78em;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .source-badge {
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.7em;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .source-arxiv {
+            background: #b7410e;
+        }
+
+        .source-semantic {
+            background: #1857b6;
+        }
+
+        .source-ieee {
+            background: #00629b;
+        }
+
+        .source-openalex {
+            background: #e65100;
+        }
+
+        .source-crossref {
+            background: #764ba2;
+        }
+
+        .source-pubmed {
+            background: #00796b;
+        }
+
+        .paper-authors {
+            font-size: 0.82em;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+        }
+
+        .paper-abstract {
+            font-size: 0.85em;
+            color: var(--text-dim);
+            line-height: 1.6;
+            overflow: hidden;
+            transition: max-height 0.4s ease;
+        }
+
+        .paper-abstract.collapsed {
+            max-height: 60px;
+        }
+
+        .paper-abstract.expanded {
+            max-height: 2000px;
+        }
+
+        .toggle-abstract {
+            color: var(--accent);
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: 600;
+            margin-top: 6px;
+            display: inline-block;
+        }
+
+        .toggle-abstract:hover {
+            text-decoration: underline;
+        }
+
+        .paper-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .paper-actions a,
+        .paper-actions button {
+            font-size: 0.78em;
+            padding: 4px 12px;
+            border-radius: 8px;
+            text-decoration: none;
+            border: 1px solid var(--glass-border);
+            color: var(--text-dim);
+            background: transparent;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: 'Inter', sans-serif;
+        }
+
+        .paper-actions a:hover,
+        .paper-actions button:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Chat */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 550px;
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 14px;
+            margin-bottom: 12px;
+            font-size: 0.9em;
+            line-height: 1.5;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .message.user {
+            background: var(--accent-grad);
+            color: #fff;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.assistant {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            color: var(--text);
+            border-bottom-left-radius: 4px;
+        }
+
+        .chat-input-area {
+            padding: 16px;
+            border-top: 1px solid var(--glass-border);
+            background: var(--bg-secondary);
+        }
+
+        .chat-input-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input-row textarea {
+            flex: 1;
+            resize: none;
+            min-height: 50px;
+        }
+
+        .chat-input-row .btn {
+            height: 50px;
+        }
+
+        .chat-btn-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-dim);
+        }
+
+        .empty-state-icon {
+            font-size: 3.5em;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        /* Upload zone */
+        .upload-zone {
+            border: 2px dashed var(--glass-border);
+            border-radius: var(--radius);
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        .upload-zone:hover,
+        .upload-zone.dragover {
+            border-color: var(--accent);
+            background: rgba(0, 210, 255, 0.04);
+        }
+
+        .uploaded-files {
+            margin-top: 16px;
+        }
+
+        .file-item {
+            background: var(--glass);
+            padding: 10px 16px;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85em;
+            border-left: 3px solid var(--accent);
+        }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius);
+            padding: 20px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--accent-grad);
+        }
+
+        .stat-value {
+            font-size: 2.2em;
+            font-weight: 800;
+            background: var(--accent-grad);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-label {
+            font-size: 0.78em;
+            color: var(--text-dim);
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        /* KG Network */
+        #kg-network {
+            background: rgba(0, 0, 0, 0.3) !important;
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius);
+        }
+
+        .kg-legend {
+            display: flex;
+            gap: 16px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .kg-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8em;
+            color: var(--text-dim);
+        }
+
+        .kg-legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        /* Charts */
+        .chart-container {
+            background: var(--bg-card);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .chart-container h3 {
+            font-size: 0.95em;
+            color: var(--text);
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+        }
+
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            padding: 14px 20px;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 0.85em;
+            font-weight: 500;
+            backdrop-filter: blur(16px);
+            animation: toastIn 0.4s ease;
+            min-width: 280px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .toast-success {
+            background: rgba(0, 230, 118, 0.9);
+        }
+
+        .toast-error {
+            background: rgba(255, 82, 82, 0.9);
+        }
+
+        .toast-info {
+            background: rgba(64, 196, 255, 0.9);
+        }
+
+        .toast-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.4);
+            animation: toastProgress 4s linear forwards;
+        }
+
+        @keyframes toastIn {
+            from {
+                opacity: 0;
+                transform: translateX(100px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes toastOut {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+
+            to {
+                opacity: 0;
+                transform: translateX(100px);
+            }
+        }
+
+        @keyframes toastProgress {
+            from {
+                width: 100%;
+            }
+
+            to {
+                width: 0%;
+            }
+        }
+
+        /* Loading */
+        .loader {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-top: 2px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 8px 0;
+        }
+
+        .typing-indicator span {
+            width: 6px;
+            height: 6px;
+            background: var(--text-dim);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            60%,
+            100% {
+                transform: translateY(0);
+            }
+
+            30% {
+                transform: translateY(-8px);
+            }
+        }
+
+        /* Alert */
+        .alert {
+            padding: 14px 18px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            font-size: 0.85em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert-success {
+            background: rgba(0, 230, 118, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(0, 230, 118, 0.2);
+        }
+
+        .alert-error {
+            background: rgba(255, 82, 82, 0.1);
+            color: var(--error);
+            border: 1px solid rgba(255, 82, 82, 0.2);
+        }
+
+        .alert-info {
+            background: rgba(64, 196, 255, 0.1);
+            color: var(--info);
+            border: 1px solid rgba(64, 196, 255, 0.2);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--glass-border);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-dim);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="toast-container" id="toastContainer"></div>
+
+    <nav class="sidebar">
+        <div class="sidebar-logo">
+            <h1>🔬 AI Research Scientist</h1>
+            <p>Powered by AI & Knowledge Graphs</p>
+        </div>
+        <div class="nav-items">
+            <div class="nav-item active" onclick="showTab('search')" id="nav-search">
+                <span class="nav-icon">📚</span> Paper Search
+            </div>
+            <div class="nav-item" onclick="showTab('graph')" id="nav-graph">
+                <span class="nav-icon">🕸️</span> Knowledge Graph
+            </div>
+            <div class="nav-item" onclick="showTab('chat')" id="nav-chat">
+                <span class="nav-icon">💬</span> PDF Chat
+            </div>
+            <div class="nav-item" onclick="showTab('stats')" id="nav-stats">
+                <span class="nav-icon">📊</span> Statistics
+            </div>
+        </div>
+        <div class="sidebar-footer">
+            <div class="status"><span class="status-dot"></span> Server Online</div>
+        </div>
+    </nav>
+
+    <main class="main">
+        <!-- SEARCH TAB -->
+        <div id="search" class="tab-content active">
+            <div class="page-header">
+                <h2>📚 Paper Search</h2>
+                <p>Search millions of research papers from multiple sources</p>
+            </div>
+            <div class="glass-card">
+                <form id="searchForm">
+                    <div class="form-group">
+                        <label>🔍 Search Query</label>
+                        <input type="text" id="query" placeholder="e.g., transformer models, deep learning, NLP..."
+                            required>
+                    </div>
+                    <div class="form-group">
+                        <label>📊 Sources</label>
+                        <div class="checkbox-group">
+                            <label><input type="checkbox" name="sources" value="arxiv" checked> ArXiv</label>
+                            <label><input type="checkbox" name="sources" value="semantic_scholar" checked> Semantic
+                                Scholar</label>
+                            <label><input type="checkbox" name="sources" value="ieee"> IEEE Xplore</label>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <div class="form-group"><label>📅 Start Year</label><input type="number" id="startYear"
+                                placeholder="2020" min="1900" max="2026"></div>
+                        <div class="form-group"><label>📅 End Year</label><input type="number" id="endYear"
+                                placeholder="2026" min="1900" max="2026"></div>
+                        <div class="form-group"><label>📈 Min Citations</label><input type="number" id="minCitations"
+                                placeholder="10" min="0"></div>
+                        <div class="form-group"><label>📑 Max Results</label><input type="number" id="maxResults"
+                                value="10" min="1" max="100"></div>
+                    </div>
+                    <div class="form-group"><label>📖 Journal Filter</label><input type="text" id="journal"
+                            placeholder="e.g., IEEE, ACM, Nature"></div>
+                    <div class="btn-group">
+                        <button type="submit" class="btn btn-primary">🔍 Search Papers</button>
+                        <button type="button" class="btn btn-success" onclick="addToGraph()">➕ Add to Knowledge
+                            Graph</button>
+                        <button type="button" class="btn btn-secondary" onclick="exportResults('json')">📥 JSON</button>
+                        <button type="button" class="btn btn-secondary" onclick="exportResults('csv')">📥 CSV</button>
+                        <button type="button" class="btn btn-secondary" onclick="exportResults('bibtex')">📥
+                            BibTeX</button>
+                    </div>
+                </form>
+            </div>
+            <div id="searchResults" class="results"></div>
+        </div>
+
+        <!-- KNOWLEDGE GRAPH TAB -->
+        <div id="graph" class="tab-content">
+            <div class="page-header">
+                <h2>🕸️ Knowledge Graph Explorer</h2>
+                <p>Explore connections between papers, authors, and research fields</p>
+            </div>
+            <div class="glass-card">
+                <form id="graphSearchForm">
+                    <div class="form-group"><label>🔍 Search Knowledge Graph</label><input type="text" id="graphQuery"
+                            placeholder="Search by title, abstract, or journal..."></div>
+                    <div class="btn-group">
+                        <button type="submit" class="btn btn-primary">🔍 Search</button>
+                        <button type="button" class="btn btn-secondary" onclick="viewAllPapers()">📋 View All
+                            Papers</button>
+                        <button type="button" class="btn btn-secondary" onclick="loadKGStats()">📈 Refresh
+                            Stats</button>
+                        <button type="button" class="btn btn-success" onclick="loadGraphVisualization()">🕸️ Visualize
+                            Graph</button>
+                    </div>
+                </form>
+            </div>
+            <div id="kgStats" class="stats-grid" style="margin-top:20px;"></div>
+            <div id="kg-network" style="width:100%;height:500px;display:none;margin-top:16px;"></div>
+            <div class="kg-legend" id="kgLegend" style="display:none;">
+                <div class="kg-legend-item"><span class="kg-legend-dot" style="background:#00d2ff;"></span> Papers</div>
+                <div class="kg-legend-item"><span class="kg-legend-dot" style="background:#ff6b9d;"></span> Authors
+                </div>
+                <div class="kg-legend-item"><span class="kg-legend-dot" style="background:#00e676;"></span> Fields</div>
+            </div>
+            <div id="graphResults" class="results"></div>
+        </div>
+
+        <!-- CHAT TAB -->
+        <div id="chat" class="tab-content">
+            <div class="page-header">
+                <h2>💬 Chat with Research Papers</h2>
+                <p>Upload PDFs and ask questions using AI-powered RAG</p>
+            </div>
+            <div class="glass-card" style="margin-bottom:20px;">
+                <div class="upload-zone" id="fileUploadZone" onclick="document.getElementById('fileInput').click()">
+                    <p style="font-size:2.5em;margin-bottom:8px;">📄</p>
+                    <p><strong>Click to upload</strong> or drag & drop PDF files</p>
+                    <p style="font-size:0.8em;color:var(--text-dim);margin-top:8px;">Supports multiple files</p>
+                    <input type="file" id="fileInput" multiple accept=".pdf" style="display:none"
+                        onchange="uploadFiles()">
+                </div>
+                <div id="uploadedFiles" class="uploaded-files"></div>
+            </div>
+            <div class="chat-container">
+                <div id="chatMessages" class="chat-messages">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">💬</div>
+                        <p>Upload PDFs and start asking questions!</p>
+                    </div>
+                </div>
+                <div class="chat-input-area">
+                    <div class="chat-input-row">
+                        <textarea id="chatInput" rows="2" placeholder="Ask a question about your papers..."></textarea>
+                        <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+                    </div>
+                    <div class="chat-btn-row">
+                        <button class="btn btn-secondary btn-sm" onclick="clearChat()">🗑️ Clear</button>
+                        <button class="btn btn-secondary btn-sm" onclick="comparePapers()">🔄 Compare</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- STATISTICS TAB -->
+        <div id="stats" class="tab-content">
+            <div class="page-header">
+                <h2>📊 Dashboard & Statistics</h2>
+                <p>Visualize your research data</p>
+            </div>
+            <button class="btn btn-primary" onclick="loadAllStats()" style="margin-bottom:24px;">🔄 Refresh All
+                Statistics</button>
+            <div id="allStatsCards" class="stats-grid"></div>
+            <div class="charts-grid" id="chartsArea">
+                <div class="chart-container">
+                    <h3>📅 Papers by Year</h3><canvas id="yearChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3>📊 Citation Distribution</h3><canvas id="citationChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3>🏷️ Source Distribution</h3><canvas id="sourceChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3>👥 Top Authors</h3><canvas id="authorChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let searchResults = [];
+        let uploadedDocs = [];
+        let chartInstances = {};
+
+        // === TOAST NOTIFICATIONS ===
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `<span>${message}</span><div class="toast-progress"></div>`;
+            container.appendChild(toast);
+            setTimeout(() => { toast.style.animation = 'toastOut 0.4s ease forwards'; setTimeout(() => toast.remove(), 400); }, 4000);
+        }
+
+        // === TAB SWITCHING ===
+        function showTab(tabName) {
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(`nav-${tabName}`).classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+            if (tabName === 'graph') loadKGStats();
+            else if (tabName === 'stats') loadAllStats();
+        }
+
+        // === PAPER SEARCH ===
+        document.getElementById('searchForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const query = document.getElementById('query').value;
+            const sources = Array.from(document.querySelectorAll('input[name="sources"]:checked')).map(cb => cb.value);
+            const resultsDiv = document.getElementById('searchResults');
+            resultsDiv.innerHTML = '<div class="alert alert-info"><span class="loader"></span> Searching papers...</div>';
+            try {
+                const response = await fetch('/api/search', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query, sources,
+                        startYear: document.getElementById('startYear').value,
+                        endYear: document.getElementById('endYear').value,
+                        minCitations: document.getElementById('minCitations').value,
+                        maxResults: document.getElementById('maxResults').value,
+                        journal: document.getElementById('journal').value
+                    })
+                });
+                const data = await response.json();
+                if (data.success) { searchResults = data.papers; displaySearchResults(data.papers, resultsDiv); showToast(`Found ${data.papers.length} papers`, 'success'); }
+                else { resultsDiv.innerHTML = `<div class="alert alert-error">Error: ${data.error}</div>`; showToast(data.error, 'error'); }
+            } catch (error) { resultsDiv.innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`; showToast(error.message, 'error'); }
+        });
+
+        function getSourceClass(source) {
+            const s = (source || '').toLowerCase();
+            if (s.includes('arxiv')) return 'source-arxiv';
+            if (s.includes('semantic')) return 'source-semantic';
+            if (s.includes('ieee')) return 'source-ieee';
+            if (s.includes('openalex')) return 'source-openalex';
+            if (s.includes('crossref')) return 'source-crossref';
+            if (s.includes('pubmed')) return 'source-pubmed';
+            return 'source-arxiv';
+        }
+
+        function displaySearchResults(papers, container) {
+            if (!papers.length) { container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔍</div><p>No papers found</p></div>'; return; }
+            container.innerHTML = `<div class="alert alert-success">✅ Found ${papers.length} papers</div>`;
+            papers.forEach((paper, i) => {
+                const card = document.createElement('div');
+                card.className = 'paper-card';
+                card.style.animationDelay = `${i * 0.05}s`;
+                const abstractText = paper.abstract ? paper.abstract.substring(0, 300) : 'No abstract available';
+                const fullAbstract = paper.abstract || 'No abstract available';
+                card.innerHTML = `
+                <h3>${paper.title}</h3>
+                <div class="paper-meta">
+                    <span>📅 ${paper.year || 'N/A'}</span>
+                    <span>📊 ${paper.citations || 0} citations</span>
+                    <span class="source-badge ${getSourceClass(paper.source)}">${paper.source || 'Unknown'}</span>
+                    ${paper.journal ? `<span>📖 ${paper.journal}</span>` : ''}
+                </div>
+                <div class="paper-authors">👥 ${(paper.authors || []).slice(0, 5).join(', ')}${(paper.authors || []).length > 5 ? ' et al.' : ''}</div>
+                <div class="paper-abstract collapsed" id="abs-${i}">${fullAbstract}</div>
+                ${fullAbstract.length > 300 ? `<span class="toggle-abstract" onclick="toggleAbstract(${i})">Show more ▼</span>` : ''}
+                <div class="paper-actions">
+                    ${paper.pdf_url ? `<a href="${paper.pdf_url}" target="_blank">📄 PDF</a>` : ''}
+                    ${paper.url ? `<a href="${paper.url}" target="_blank">🔗 Link</a>` : ''}
+                    ${paper.doi ? `<a href="https://doi.org/${paper.doi}" target="_blank">🔖 DOI</a>` : ''}
+                    <button onclick="copyCitation(${i})">📋 Copy Citation</button>
+                </div>`;
+                container.appendChild(card);
+            });
+        }
+
+        function toggleAbstract(i) {
+            const abs = document.getElementById(`abs-${i}`);
+            const toggle = abs.nextElementSibling;
+            if (abs.classList.contains('collapsed')) { abs.classList.replace('collapsed', 'expanded'); toggle.textContent = 'Show less ▲'; }
+            else { abs.classList.replace('expanded', 'collapsed'); toggle.textContent = 'Show more ▼'; }
+        }
+
+        function copyCitation(i) {
+            const p = searchResults[i];
+            const cite = `@article{${(p.title || '').split(' ')[0]?.toLowerCase()}${p.year || ''},\n  title={${p.title}},\n  author={${(p.authors || []).join(' and ')}},\n  year={${p.year}},\n  journal={${p.journal || ''}},\n  doi={${p.doi || ''}}\n}`;
+            navigator.clipboard.writeText(cite).then(() => showToast('Citation copied to clipboard!', 'success'));
+        }
+
+        // === ADD TO KNOWLEDGE GRAPH ===
+        async function addToGraph() {
+            if (!searchResults.length) { showToast('Search for papers first!', 'error'); return; }
+            try {
+                const response = await fetch('/api/kg/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ papers: searchResults }) });
+                const data = await response.json();
+                if (data.success) showToast(data.message, 'success'); else showToast(data.error, 'error');
+            } catch (error) { showToast(error.message, 'error'); }
+        }
+
+        // === EXPORT ===
+        async function exportResults(format) {
+            if (!searchResults.length) { showToast('Search for papers first!', 'error'); return; }
+            try {
+                const response = await fetch('/api/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ format, papers: searchResults }) });
+                const data = await response.json();
+                if (data.success) {
+                    const blob = new Blob([data.data], { type: 'text/plain' });
+                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+                    a.download = `papers.${format === 'bibtex' ? 'bib' : format}`; a.click();
+                    showToast(`Exported as ${format.toUpperCase()}`, 'success');
+                } else showToast(data.error, 'error');
+            } catch (error) { showToast(error.message, 'error'); }
+        }
+
+        // === KNOWLEDGE GRAPH SEARCH ===
+        document.getElementById('graphSearchForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const query = document.getElementById('graphQuery').value;
+            const resultsDiv = document.getElementById('graphResults');
+            resultsDiv.innerHTML = '<div class="alert alert-info"><span class="loader"></span> Searching knowledge graph...</div>';
+            try {
+                const response = await fetch('/api/kg/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query }) });
+                const data = await response.json();
+                if (data.success) displaySearchResults(data.papers, resultsDiv); else resultsDiv.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+            } catch (error) { resultsDiv.innerHTML = `<div class="alert alert-error">${error.message}</div>`; }
+        });
+
+        async function viewAllPapers() {
+            const resultsDiv = document.getElementById('graphResults');
+            resultsDiv.innerHTML = '<div class="alert alert-info"><span class="loader"></span> Loading...</div>';
+            try {
+                const response = await fetch('/api/kg/all'); const data = await response.json();
+                if (data.success) displaySearchResults(data.papers, resultsDiv); else resultsDiv.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+            } catch (error) { resultsDiv.innerHTML = `<div class="alert alert-error">${error.message}</div>`; }
+        }
+
+        async function loadKGStats() {
+            const statsDiv = document.getElementById('kgStats');
+            try {
+                const response = await fetch('/api/kg/stats'); const data = await response.json();
+                if (data.success) {
+                    const s = data.stats;
+                    statsDiv.innerHTML = `
+                    <div class="stat-card"><div class="stat-value">${s.total_papers}</div><div class="stat-label">Papers</div></div>
+                    <div class="stat-card"><div class="stat-value">${s.total_authors}</div><div class="stat-label">Authors</div></div>
+                    <div class="stat-card"><div class="stat-value">${s.total_fields}</div><div class="stat-label">Fields</div></div>
+                    <div class="stat-card"><div class="stat-value">${s.avg_citations}</div><div class="stat-label">Avg Citations</div></div>
+                    <div class="stat-card"><div class="stat-value">${s.max_citations || 0}</div><div class="stat-label">Max Citations</div></div>`;
+                } else statsDiv.innerHTML = '<div class="alert alert-info">Knowledge graph stats unavailable</div>';
+            } catch (error) { statsDiv.innerHTML = '<div class="alert alert-error">Error loading stats</div>'; }
+        }
+
+        // === GRAPH VISUALIZATION ===
+        let network = null;
+        async function loadGraphVisualization() {
+            const networkDiv = document.getElementById('kg-network');
+            const legendDiv = document.getElementById('kgLegend');
+            networkDiv.style.display = 'block'; legendDiv.style.display = 'flex';
+            document.getElementById('kgStats').innerHTML = '<div class="alert alert-info"><span class="loader"></span> Loading visualization...</div>';
+            try {
+                const response = await fetch('/api/kg/visualize?limit=150'); const data = await response.json();
+                if (data.success) {
+                    document.getElementById('kgStats').innerHTML = `<div class="alert alert-success">✅ ${data.data.nodes.length} nodes, ${data.data.edges.length} relationships</div>`;
+                    const nodes = new vis.DataSet(data.data.nodes.map(n => ({
+                        id: n.id, label: n.label, title: n.title || n.label, group: n.group, value: n.value || 1,
+                        color: n.group === 'Paper' ? '#00d2ff' : n.group === 'Author' ? '#ff6b9d' : '#00e676',
+                        shape: n.group === 'Paper' ? 'dot' : 'box',
+                        font: { color: '#e8e8f0', size: 11 }
+                    })));
+                    const edges = new vis.DataSet(data.data.edges.map(e => ({ ...e, color: { color: 'rgba(255,255,255,0.15)', highlight: '#00d2ff' } })));
+                    if (network) network.destroy();
+                    network = new vis.Network(networkDiv, { nodes, edges }, {
+                        nodes: { scaling: { min: 10, max: 30 }, font: { face: 'Inter' } },
+                        edges: { width: 0.5, smooth: { type: 'continuous' } },
+                        physics: { stabilization: false, barnesHut: { gravitationalConstant: -50000, springConstant: 0.001, springLength: 200 } },
+                        interaction: { tooltipDelay: 200, hideEdgesOnDrag: true },
+                        layout: { improvedLayout: true }
+                    });
+                    showToast('Graph loaded!', 'success');
+                } else showToast(data.error, 'error');
+            } catch (error) { showToast(error.message, 'error'); }
+        }
+
+        // === FILE UPLOAD ===
+        const uploadZone = document.getElementById('fileUploadZone');
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e => uploadZone.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); }));
+        ['dragenter', 'dragover'].forEach(e => uploadZone.addEventListener(e, () => uploadZone.classList.add('dragover')));
+        ['dragleave', 'drop'].forEach(e => uploadZone.addEventListener(e, () => uploadZone.classList.remove('dragover')));
+        uploadZone.addEventListener('drop', e => { document.getElementById('fileInput').files = e.dataTransfer.files; uploadFiles(); });
+
+        async function uploadFiles() {
+            const files = document.getElementById('fileInput').files;
+            const uploadedDiv = document.getElementById('uploadedFiles');
+            for (let file of files) {
+                const formData = new FormData(); formData.append('file', file);
+                const item = document.createElement('div'); item.className = 'file-item';
+                item.innerHTML = `<span>📄 ${file.name}</span><span class="loader"></span>`;
+                uploadedDiv.appendChild(item);
+                try {
+                    const response = await fetch('/api/pdf/upload', { method: 'POST', body: formData });
+                    const data = await response.json();
+                    if (data.success) { item.innerHTML = `<span>📄 ${file.name}</span><span style="color:var(--success)">✅ Ready</span>`; uploadedDocs.push(data.doc_id); showToast(`${file.name} uploaded!`, 'success'); }
+                    else { item.innerHTML = `<span>📄 ${file.name}</span><span style="color:var(--error)">❌ Failed</span>`; showToast(data.error, 'error'); }
+                } catch (error) { item.innerHTML = `<span>📄 ${file.name}</span><span style="color:var(--error)">❌ Error</span>`; }
+            }
+            const emptyState = document.querySelector('#chatMessages .empty-state');
+            if (emptyState) emptyState.remove();
+        }
+
+        // === CHAT ===
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim(); if (!message) return;
+            const messagesDiv = document.getElementById('chatMessages');
+            const emptyState = messagesDiv.querySelector('.empty-state');
+            if (emptyState) emptyState.remove();
+            const userMsg = document.createElement('div'); userMsg.className = 'message user'; userMsg.textContent = message;
+            messagesDiv.appendChild(userMsg); input.value = ''; messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            const loadingMsg = document.createElement('div'); loadingMsg.className = 'message assistant';
+            loadingMsg.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+            messagesDiv.appendChild(loadingMsg);
+            try {
+                const response = await fetch('/api/rag/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message }) });
+                const data = await response.json(); loadingMsg.remove();
+                const assistantMsg = document.createElement('div'); assistantMsg.className = 'message assistant';
+                assistantMsg.textContent = data.success ? data.response : `Error: ${data.error}`;
+                messagesDiv.appendChild(assistantMsg); messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            } catch (error) { loadingMsg.textContent = `Error: ${error.message}`; }
+        }
+
+        async function clearChat() {
+            try { await fetch('/api/rag/clear', { method: 'POST' }); document.getElementById('chatMessages').innerHTML = '<div class="empty-state"><div class="empty-state-icon">💬</div><p>Chat cleared</p></div>'; showToast('Chat cleared', 'info'); }
+            catch (error) { showToast('Error clearing chat', 'error'); }
+        }
+
+        async function comparePapers() {
+            const aspect = prompt('Compare papers by:\n\nEnter: methodology, results, conclusions, approach', 'methodology');
+            if (!aspect) return;
+            const messagesDiv = document.getElementById('chatMessages');
+            const loadingMsg = document.createElement('div'); loadingMsg.className = 'message assistant';
+            loadingMsg.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+            messagesDiv.appendChild(loadingMsg);
+            try {
+                const response = await fetch('/api/rag/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'Compare the documents on: ' + aspect }) });
+                const data = await response.json(); loadingMsg.remove();
+                const msg = document.createElement('div'); msg.className = 'message assistant';
+                msg.textContent = data.success ? data.response : `Error: ${data.error}`;
+                messagesDiv.appendChild(msg); messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            } catch (error) { loadingMsg.textContent = `Error: ${error.message}`; }
+        }
+
+        document.getElementById('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+
+        // === STATISTICS & CHARTS ===
+        async function loadAllStats() {
+            const cardsDiv = document.getElementById('allStatsCards');
+            cardsDiv.innerHTML = '<div class="alert alert-info"><span class="loader"></span> Loading...</div>';
+            try {
+                const [kgRes, chatRes] = await Promise.all([fetch('/api/kg/stats'), fetch('/api/rag/documents')]);
+                const kgData = await kgRes.json(); const chatData = await chatRes.json();
+                let html = '';
+                if (kgData.success) {
+                    const s = kgData.stats;
+                    html += `<div class="stat-card"><div class="stat-value">${s.total_papers}</div><div class="stat-label">Papers in Graph</div></div>
+                    <div class="stat-card"><div class="stat-value">${s.total_authors}</div><div class="stat-label">Authors</div></div>
+                    <div class="stat-card"><div class="stat-value">${s.total_fields}</div><div class="stat-label">Fields</div></div>`;
+                }
+                if (chatData.success && chatData.stats) {
+                    const s = chatData.stats;
+                    html += `<div class="stat-card"><div class="stat-value">${s.num_documents}</div><div class="stat-label">Documents Loaded</div></div>
+                    <div class="stat-card"><div class="stat-value">${s.total_chunks}</div><div class="stat-label">Text Chunks</div></div>
+                    <div class="stat-card"><div class="stat-value">${Math.round(s.total_characters / 1000)}K</div><div class="stat-label">Characters</div></div>`;
+                }
+                cardsDiv.innerHTML = html || '<div class="alert alert-info">No statistics available yet</div>';
+                buildCharts(kgData, chatData);
+            } catch (error) { cardsDiv.innerHTML = '<div class="alert alert-error">Error loading stats</div>'; }
+        }
+
+        function buildCharts(kgData) {
+            const chartOpts = { responsive: true, plugins: { legend: { labels: { color: '#8888aa', font: { family: 'Inter' } } } }, scales: { x: { ticks: { color: '#8888aa' }, grid: { color: 'rgba(255,255,255,0.04)' } }, y: { ticks: { color: '#8888aa' }, grid: { color: 'rgba(255,255,255,0.04)' } } } };
+            // Destroy old charts
+            Object.values(chartInstances).forEach(c => c.destroy());
+            chartInstances = {};
+            // Mock data from search results if available
+            const papers = searchResults.length ? searchResults : [];
+            // Papers by year
+            const yearCounts = {};
+            papers.forEach(p => { if (p.year) yearCounts[p.year] = (yearCounts[p.year] || 0) + 1; });
+            const years = Object.keys(yearCounts).sort();
+            chartInstances.year = new Chart(document.getElementById('yearChart'), {
+                type: 'bar', data: { labels: years, datasets: [{ label: 'Papers', data: years.map(y => yearCounts[y]), backgroundColor: 'rgba(0,210,255,0.6)', borderColor: '#00d2ff', borderWidth: 1, borderRadius: 6 }] }, options: chartOpts
+            });
+            // Citation distribution
+            const citBuckets = { '0-10': 0, '11-50': 0, '51-100': 0, '101-500': 0, '500+': 0 };
+            papers.forEach(p => { const c = p.citations || 0; if (c <= 10) citBuckets['0-10']++; else if (c <= 50) citBuckets['11-50']++; else if (c <= 100) citBuckets['51-100']++; else if (c <= 500) citBuckets['101-500']++; else citBuckets['500+']++; });
+            chartInstances.citation = new Chart(document.getElementById('citationChart'), {
+                type: 'bar', data: { labels: Object.keys(citBuckets), datasets: [{ label: 'Papers', data: Object.values(citBuckets), backgroundColor: ['rgba(0,210,255,0.6)', 'rgba(123,47,247,0.6)', 'rgba(0,230,118,0.6)', 'rgba(255,171,64,0.6)', 'rgba(255,82,82,0.6)'], borderRadius: 6 }] }, options: chartOpts
+            });
+            // Source distribution
+            const srcCounts = {};
+            papers.forEach(p => { const s = p.source || 'Unknown'; srcCounts[s] = (srcCounts[s] || 0) + 1; });
+            chartInstances.source = new Chart(document.getElementById('sourceChart'), {
+                type: 'doughnut', data: { labels: Object.keys(srcCounts), datasets: [{ data: Object.values(srcCounts), backgroundColor: ['#00d2ff', '#7b2ff7', '#00e676', '#ff6b9d', '#ffab40', '#40c4ff'] }] },
+                options: { responsive: true, plugins: { legend: { labels: { color: '#8888aa', font: { family: 'Inter' } } } } }
+            });
+            // Top authors
+            const authorCounts = {};
+            papers.forEach(p => (p.authors || []).forEach(a => { authorCounts[a] = (authorCounts[a] || 0) + 1; }));
+            const topAuthors = Object.entries(authorCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+            chartInstances.author = new Chart(document.getElementById('authorChart'), {
+                type: 'bar', data: { labels: topAuthors.map(a => a[0].length > 20 ? a[0].substring(0, 20) + '...' : a[0]), datasets: [{ label: 'Papers', data: topAuthors.map(a => a[1]), backgroundColor: 'rgba(123,47,247,0.6)', borderColor: '#7b2ff7', borderWidth: 1, borderRadius: 6 }] },
+                options: { ...chartOpts, indexAxis: 'y' }
+            });
+        }
+
+        // Initial load
+        loadKGStats();
+    </script>
+</body>
+
+</html>

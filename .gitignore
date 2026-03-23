@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual Environment
+venv/
+env/
+.venv/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Data & Storage (generated at runtime)
+data/
+uploads/
+rag_storage/
+rag_storage_web/
+rag_storage_ollama/
+
+# Logs
+*.log
+
+# Database
+*.db
+*.sqlite3
+
+# Pickle files (contain embeddings/data)
+*.pkl
+
+# Test files
+dummy_test.txt
+
+# Byte-compiled
+*.pyc
