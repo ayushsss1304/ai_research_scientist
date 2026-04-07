@@ -80,7 +80,103 @@ class EnhancedPaperScraper:
             logger.info("✓ Google Scholar initialized")
         
         logger.info(f"\n📚 Total sources available: {len(self.scrapers)}")
-    
+
+    # Common English stopwords to ignore in keyword matching
+    _STOPWORDS = {
+        'a', 'an', 'the', 'and', 'or', 'of', 'in', 'on', 'at', 'to', 'for',
+        'with', 'by', 'from', 'as', 'is', 'are', 'was', 'were', 'it', 'its',
+        'this', 'that', 'these', 'those', 'be', 'been', 'being', 'have', 'has',
+        'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may',
+        'might', 'can', 'about', 'into', 'through', 'during', 'using', 'via',
+        'than', 'more', 'most', 'also', 'such', 'their', 'our', 'we', 'i',
+    }
+
+    def _normalize_str(self, s: str) -> str:
+        """Lowercase, strip punctuation."""
+        import re
+        return re.sub(r'[^\w\s]', '', (s or '').lower()).strip()
+
+    def _keywords(self, text: str) -> set:
+        """Return meaningful keywords after removing stopwords."""
+        words = self._normalize_str(text).split()
+        return {w for w in words if w and w not in self._STOPWORDS}
+
+    def compute_relevance_score(self, paper: Dict, query: str) -> float:
+        """
+        Compute a 0-100 relevance score for a paper against a query.
+        Factors:
+          - Exact title match          → 100 immediately
+          - Near-exact / phrase match  → up to 40 pts (title) + bonus
+          - Abstract keyword match     → up to 20 pts
+          - Source prestige            → up to 10 pts
+          - Recency                    → up to 10 pts
+          - Citation count (log)       → up to 10 pts
+        """
+        import math
+        from datetime import date
+
+        title = paper.get('title') or ''
+        abstract_text = (paper.get('abstract') or '').lower()
+
+        norm_query = self._normalize_str(query)
+        norm_title = self._normalize_str(title)
+
+        # ── Exact title match → instant 100 ──────────────────────────────
+        if norm_query == norm_title:
+            return 100.0
+
+        score = 0.0
+
+        # ── 1. Title match (up to 40 pts) ─────────────────────────────────
+        # a) Phrase containment bonus (one contains the other as a substring)
+        if norm_query in norm_title or norm_title in norm_query:
+            score += 40.0
+        else:
+            # b) Stopword-filtered keyword overlap
+            query_kw = self._keywords(query)
+            title_kw = self._keywords(title)
+            if query_kw and title_kw:
+                overlap = len(query_kw & title_kw) / len(query_kw)
+                score += overlap * 40
+
+        # ── 2. Abstract keyword match (up to 20 pts) ──────────────────────
+        query_kw = self._keywords(query)
+        if query_kw and abstract_text:
+            matched = sum(1 for t in query_kw if t in abstract_text)
+            score += (matched / len(query_kw)) * 20
+
+        # ── 3. Source / publication prestige (up to 10 pts) ───────────────
+        source_weights = {
+            'ieee': 10, 'ieee xplore': 10,
+            'nature': 10, 'science': 10,
+            'acm': 8,
+            'semantic scholar': 6, 'pubmed': 6,
+            'arxiv': 4, 'openalex': 4,
+            'crossref': 3, 'core': 3,
+            'google scholar': 2,
+        }
+        src = (paper.get('source') or '').lower()
+        journal = (paper.get('journal') or '').lower()
+        prestige = 0
+        for key, val in source_weights.items():
+            if key in src or key in journal:
+                prestige = max(prestige, val)
+        score += min(prestige, 10)
+
+        # ── 4. Recency (up to 10 pts) ─────────────────────────────────────
+        current_year = date.today().year
+        paper_year = paper.get('year') or 0
+        if paper_year > 0:
+            age = max(0, current_year - paper_year)
+            score += max(0, 10 - age)
+
+        # ── 5. Citation count — log-scaled up to 10 pts ───────────────────
+        citations = paper.get('citations') or 0
+        if citations > 0:
+            score += min(10, math.log10(citations + 1) * 3)
+
+        return round(min(score, 100), 1)
+
     def search_all(self, 
                    query: str, 
                    max_results_per_source: int = 50,
@@ -104,7 +200,7 @@ class EnhancedPaperScraper:
             include_abstract: Include abstract in results
             
         Returns:
-            List of unique papers with all metadata
+            List of unique papers sorted by relevance score
         """
         
         if sources is None:
@@ -164,8 +260,10 @@ class EnhancedPaperScraper:
         unique_papers = self.advanced_deduplication(all_papers)
         logger.info(f"  {'After deduplication':20s}: {len(unique_papers):4d} papers")
         
-        # Sort by citations
-        unique_papers.sort(key=lambda x: x.get('citations', 0), reverse=True)
+        # Compute relevance score and sort by it (descending)
+        for paper in unique_papers:
+            paper['relevance_score'] = self.compute_relevance_score(paper, query)
+        unique_papers.sort(key=lambda x: x.get('relevance_score', 0), reverse=True)
         
         # Optionally remove abstracts to save space
         if not include_abstract:

@@ -126,6 +126,9 @@ def search_papers():
             include_abstract=True
         )
         
+        # Limit the total results to the exact number requested by the user
+        papers = papers[:max_results]
+        
         # Store in session
         session['last_search_results'] = papers
         
@@ -300,46 +303,193 @@ def visualize_knowledge_graph():
 
 @app.route('/api/pdf/upload', methods=['POST'])
 def upload_pdf():
-    """Upload PDF for RAG"""
+    """Upload PDF for RAG — succeeds even if Ollama is unavailable."""
     try:
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'No file provided'}), 400
-        
+
         file = request.files['file']
         if file.filename == '':
             return jsonify({'success': False, 'error': 'No file selected'}), 400
-        
-        # Save file
+
+        if not file.filename.lower().endswith('.pdf'):
+            return jsonify({'success': False, 'error': 'Only PDF files are supported'}), 400
+
+        # Save file first — this always succeeds
         filename = secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
-        
-        # Add to RAG
+
+        doc_id = filename.replace('.pdf', '')
+
+        # Try to add to RAG (optional)
+        chatbot = get_rag_chatbot()
+        if chatbot:
+            try:
+                success = chatbot.add_document_from_file(filepath, doc_id)
+                if success:
+                    return jsonify({
+                        'success': True,
+                        'message': f'PDF uploaded and indexed: {filename}',
+                        'doc_id': doc_id,
+                        'rag_enabled': True
+                    })
+                else:
+                    return jsonify({
+                        'success': True,
+                        'message': f'PDF saved but indexing failed: {filename}. Try re-uploading.',
+                        'doc_id': doc_id,
+                        'rag_enabled': False
+                    })
+            except Exception as rag_err:
+                logger.warning(f"RAG indexing failed (non-fatal): {rag_err}")
+                return jsonify({
+                    'success': True,
+                    'message': f'PDF saved. RAG indexing failed: {rag_err}',
+                    'doc_id': doc_id,
+                    'rag_enabled': False
+                })
+        else:
+            return jsonify({
+                'success': True,
+                'message': f'PDF saved. Start Ollama to enable AI chat.',
+                'doc_id': doc_id,
+                'rag_enabled': False
+            })
+
+    except Exception as e:
+        logger.error(f"Upload error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/kg/clear', methods=['POST'])
+def clear_knowledge_graph():
+    """Clear all nodes from the knowledge graph."""
+    try:
+        kg = get_kg_manager()
+        if not kg:
+            return jsonify({'success': False, 'error': 'Knowledge graph not available'}), 500
+        ok = kg.clear_graph()
+        if ok:
+            return jsonify({'success': True, 'message': 'Knowledge graph cleared successfully'})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to clear graph'}), 500
+    except Exception as e:
+        logger.error(f"KG clear error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/kg/insights', methods=['GET'])
+def get_kg_insights():
+    """Generate AI insights from the knowledge graph."""
+    try:
+        kg = get_kg_manager()
+        if not kg:
+            return jsonify({'success': False, 'error': 'Knowledge graph not available'}), 500
+
+        data = kg.get_insights_data()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data in knowledge graph yet'}), 400
+
+        # Build structured insight from data (always available)
+        structured = {
+            'top_authors': data.get('top_authors', []),
+            'top_fields': data.get('top_fields', []),
+            'top_cited': data.get('top_cited', []),
+            'year_dist': data.get('year_dist', []),
+            'stats': data.get('stats', {}),
+        }
+
+        # Try to get an AI narrative (Ollama optional)
+        ai_summary = None
+        chatbot = get_rag_chatbot()
+        if chatbot:
+            try:
+                summary_prompt = f"""You are a research analyst. Analyze this knowledge graph data and provide 3 key insights, 2 trends, and 1 emerging research opportunity. Be concise (bullet points).
+
+Top Authors: {data.get('top_authors', [])}
+Top Fields: {data.get('top_fields', [])}
+Most Cited Papers: {[p['title'] for p in data.get('top_cited', [])]}
+Year Distribution: {data.get('year_dist', [])}
+Total Papers: {data.get('stats', {}).get('total_papers', 0)}"""
+                ai_summary = chatbot.client.generate(summary_prompt, temperature=0.4, max_tokens=600)
+            except Exception as e:
+                logger.warning(f"Ollama insight generation failed: {e}")
+
+        return jsonify({
+            'success': True,
+            'structured': structured,
+            'ai_summary': ai_summary
+        })
+
+    except Exception as e:
+        logger.error(f"KG insights error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/research/gaps', methods=['POST'])
+def find_research_gaps():
+    """Use AI to identify research gaps in the last search results."""
+    try:
+        data = request.json or {}
+        papers = data.get('papers', session.get('last_search_results', []))
+        query = data.get('query', '')
+
+        if not papers:
+            return jsonify({'success': False, 'error': 'No papers to analyze. Run a search first.'}), 400
+
         chatbot = get_rag_chatbot()
         if not chatbot:
             return jsonify({
                 'success': False,
-                'error': 'RAG chatbot not available. Make sure Ollama is running.'
-            }), 500
-        
-        doc_id = filename.replace('.pdf', '')
-        success = chatbot.add_document_from_file(filepath, doc_id)
-        
-        if success:
-            return jsonify({
-                'success': True,
-                'message': f'PDF uploaded: {filename}',
-                'doc_id': doc_id
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': 'Failed to process PDF'
-            }), 500
-    
+                'error': 'Ollama not available. Start Ollama to use the Research Gap Finder.'
+            }), 503
+
+        # Build a summary of the papers
+        paper_summaries = []
+        for i, p in enumerate(papers[:15]):  # limit to 15 to keep prompt manageable
+            paper_summaries.append(
+                f"{i+1}. \"{p.get('title', '')}\" ({p.get('year', '')}) — "
+                f"Citations: {p.get('citations', 0)} — Source: {p.get('source', '')}\n"
+                f"   Abstract: {(p.get('abstract') or '')[:200]}"
+            )
+
+        prompt = f"""You are an expert research analyst specializing in identifying research gaps.
+
+Research Topic: "{query}"
+
+Papers analyzed:
+{chr(10).join(paper_summaries)}
+
+Please provide a structured analysis with EXACTLY these 4 sections using markdown:
+
+## 🔍 Research Gaps
+List 3 specific gaps or unsolved problems identified across these papers.
+
+## 🚀 Future Research Directions
+List 2 promising directions researchers should explore next.
+
+## ⭐ Rising Star Papers
+Identify 3 papers from the list that seem most impactful or novel (cite them by title).
+
+## 💡 Novel Hypotheses
+Propose 2 testable research hypotheses that could bridge the identified gaps.
+
+Be specific, insightful, and actionable."""
+
+        response = chatbot.client.generate(prompt, temperature=0.5, max_tokens=1200)
+
+        return jsonify({
+            'success': True,
+            'analysis': response,
+            'papers_analyzed': len(paper_summaries)
+        })
+
     except Exception as e:
-        logger.error(f"Upload error: {e}", exc_info=True)
+        logger.error(f"Research gaps error: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
 
 @app.route('/api/rag/documents', methods=['GET'])
 def get_rag_documents():

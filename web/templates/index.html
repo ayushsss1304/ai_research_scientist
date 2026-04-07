@@ -10,6 +10,7 @@
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root {
             --bg-primary: #0a0a1a;
@@ -86,6 +87,7 @@
             font-weight: 800;
             background: var(--accent-grad);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
@@ -440,6 +442,14 @@
             background: #00796b;
         }
 
+        .source-core {
+            background: #f4511e;
+        }
+
+        .source-google {
+            background: #4285f4;
+        }
+
         .paper-authors {
             font-size: 0.82em;
             color: var(--text-dim);
@@ -660,8 +670,57 @@
             font-weight: 800;
             background: var(--accent-grad);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
+
+        /* Relevance badge */
+        .relevance-badge {
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.68em;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+        }
+        .rel-high { background: rgba(0,230,118,0.2); color: #00e676; border: 1px solid rgba(0,230,118,0.4); }
+        .rel-mid  { background: rgba(255,171,64,0.2); color: #ffab40; border: 1px solid rgba(255,171,64,0.4); }
+        .rel-low  { background: rgba(255,82,82,0.15); color: #ff5252; border: 1px solid rgba(255,82,82,0.3); }
+
+        /* Chat markdown prose */
+        .message.assistant h1,.message.assistant h2,.message.assistant h3 { color:#fff; margin:10px 0 4px; }
+        .message.assistant p { margin-bottom:8px; line-height:1.6; }
+        .message.assistant ul,.message.assistant ol { margin:6px 0 8px 18px; }
+        .message.assistant li { margin-bottom:4px; line-height:1.5; }
+        .message.assistant code { background:rgba(0,210,255,0.15); border-radius:4px; padding:1px 6px; font-size:0.88em; font-family:monospace; }
+        .message.assistant pre { background:rgba(0,0,0,0.4); border:1px solid var(--glass-border); border-radius:8px; padding:12px; margin:8px 0; overflow-x:auto; }
+        .message.assistant pre code { background:none; padding:0; }
+        .message.assistant table { border-collapse:collapse; width:100%; margin:10px 0; font-size:0.85em; }
+        .message.assistant th { background:rgba(0,210,255,0.2); color:#fff; padding:8px 12px; text-align:left; border:1px solid rgba(255,255,255,0.1); }
+        .message.assistant td { padding:7px 12px; border:1px solid rgba(255,255,255,0.08); color:var(--text); }
+        .message.assistant tr:nth-child(even) td { background:rgba(255,255,255,0.03); }
+        .message.assistant blockquote { border-left:3px solid var(--accent); margin:8px 0; padding:6px 14px; color:var(--text-dim); font-style:italic; }
+        .message.assistant strong { color:#fff; }
+
+        /* KG Insights panel */
+        .insights-panel { margin-top:20px; }
+        .insights-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; margin-top:16px; }
+        .insight-card { background:var(--bg-card); border:1px solid var(--glass-border); border-radius:var(--radius); padding:18px; }
+        .insight-card h4 { font-size:0.9em; color:var(--text); margin-bottom:12px; font-weight:600; display:flex;align-items:center;gap:8px; }
+        .insight-item { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.05); font-size:0.82em; }
+        .insight-item:last-child { border-bottom:none; }
+        .insight-item-name { color:var(--text); max-width:75%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .insight-item-val { color:var(--accent); font-weight:700; font-size:0.9em; white-space:nowrap; }
+        .ai-summary-box { background:rgba(0,210,255,0.05); border:1px solid rgba(0,210,255,0.2); border-radius:var(--radius); padding:18px; margin-top:16px; font-size:0.87em; line-height:1.7; }
+
+        /* Research Gap Finder */
+        .gap-finder-panel { margin-top:20px; background:rgba(123,47,247,0.08); border:1px solid rgba(123,47,247,0.25); border-radius:var(--radius); padding:24px; }
+        .gap-finder-panel h3 { font-size:1em; color:var(--text-bright); margin-bottom:14px; }
+        .gap-content { font-size:0.875em; line-height:1.75; color:var(--text); }
+        .gap-content h2 { font-size:1em; color:var(--accent); margin:14px 0 6px; display:flex;align-items:center;gap:6px; }
+        .gap-content ul,.gap-content ol { margin:4px 0 10px 18px; }
+        .gap-content li { margin-bottom:5px; line-height:1.6; }
+        .gap-content strong { color:#fff; }
+        .gap-content blockquote { border-left:3px solid var(--accent2); padding:4px 12px; color:var(--text-dim); margin:6px 0; font-style:italic; }
 
         .stat-label {
             font-size: 0.78em;
@@ -945,12 +1004,16 @@
                             required>
                     </div>
                     <div class="form-group">
-                        <label>📊 Sources</label>
+                        <label>📊 Sources <span style="font-size:0.75em;color:var(--text-dim);font-weight:400">(papers ≥80% relevance shown by default)</span></label>
                         <div class="checkbox-group">
                             <label><input type="checkbox" name="sources" value="arxiv" checked> ArXiv</label>
-                            <label><input type="checkbox" name="sources" value="semantic_scholar" checked> Semantic
-                                Scholar</label>
+                            <label><input type="checkbox" name="sources" value="semantic_scholar" checked> Semantic Scholar</label>
+                            <label><input type="checkbox" name="sources" value="openalex" checked> OpenAlex</label>
+                            <label><input type="checkbox" name="sources" value="crossref"> CrossRef</label>
+                            <label><input type="checkbox" name="sources" value="pubmed"> PubMed</label>
                             <label><input type="checkbox" name="sources" value="ieee"> IEEE Xplore</label>
+                            <label><input type="checkbox" name="sources" value="core"> CORE</label>
+                            <label><input type="checkbox" name="sources" value="google_scholar"> Google Scholar</label>
                         </div>
                     </div>
                     <div class="filter-group">
@@ -967,16 +1030,25 @@
                             placeholder="e.g., IEEE, ACM, Nature"></div>
                     <div class="btn-group">
                         <button type="submit" class="btn btn-primary">🔍 Search Papers</button>
-                        <button type="button" class="btn btn-success" onclick="addToGraph()">➕ Add to Knowledge
-                            Graph</button>
+                        <button type="button" class="btn btn-success" onclick="addToGraph()">➕ Add to KG</button>
+                        <button type="button" id="btnGapFinder" class="btn btn-secondary" onclick="findResearchGaps()" style="display:none;background:linear-gradient(135deg,rgba(123,47,247,0.3),rgba(0,210,255,0.2));border-color:rgba(123,47,247,0.5)">🔬 Find Research Gaps</button>
                         <button type="button" class="btn btn-secondary" onclick="exportResults('json')">📥 JSON</button>
                         <button type="button" class="btn btn-secondary" onclick="exportResults('csv')">📥 CSV</button>
-                        <button type="button" class="btn btn-secondary" onclick="exportResults('bibtex')">📥
-                            BibTeX</button>
+                        <button type="button" class="btn btn-secondary" onclick="exportResults('bibtex')">📥 BibTeX</button>
                     </div>
                 </form>
             </div>
             <div id="searchResults" class="results"></div>
+            <!-- Research Gap Finder -->
+            <div id="gapFinderSection" style="display:none">
+                <div class="gap-finder-panel">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+                        <h3>🔬 Research Gap Finder</h3>
+                        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('gapFinderSection').style.display='none'">✕ Close</button>
+                    </div>
+                    <div id="gapContent"><div class="empty-state" style="padding:20px"><div class="empty-state-icon">🔬</div><p>Click "Find Research Gaps" above to analyze your search results with AI.</p></div></div>
+                </div>
+            </div>
         </div>
 
         <!-- KNOWLEDGE GRAPH TAB -->
@@ -991,12 +1063,11 @@
                             placeholder="Search by title, abstract, or journal..."></div>
                     <div class="btn-group">
                         <button type="submit" class="btn btn-primary">🔍 Search</button>
-                        <button type="button" class="btn btn-secondary" onclick="viewAllPapers()">📋 View All
-                            Papers</button>
-                        <button type="button" class="btn btn-secondary" onclick="loadKGStats()">📈 Refresh
-                            Stats</button>
-                        <button type="button" class="btn btn-success" onclick="loadGraphVisualization()">🕸️ Visualize
-                            Graph</button>
+                        <button type="button" class="btn btn-secondary" onclick="viewAllPapers()">📋 View All Papers</button>
+                        <button type="button" class="btn btn-secondary" onclick="loadKGStats()">📈 Refresh Stats</button>
+                        <button type="button" class="btn btn-success" onclick="loadGraphVisualization()">🕸️ Visualize Graph</button>
+                        <button type="button" class="btn btn-secondary" onclick="generateKGInsights()" style="background:linear-gradient(135deg,rgba(0,210,255,0.2),rgba(123,47,247,0.2));border-color:rgba(0,210,255,0.4)">🧠 Generate Insights</button>
+                        <button type="button" class="btn btn-secondary" onclick="clearKnowledgeGraph()" style="border-color:rgba(255,82,82,0.4);color:#ff5252">🗑️ Clear Graph</button>
                     </div>
                 </form>
             </div>
@@ -1009,6 +1080,16 @@
                 <div class="kg-legend-item"><span class="kg-legend-dot" style="background:#00e676;"></span> Fields</div>
             </div>
             <div id="graphResults" class="results"></div>
+            <!-- KG Insights Panel -->
+            <div id="kgInsightsPanel" class="insights-panel" style="display:none">
+                <div class="glass-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center">
+                        <h3 style="font-size:1em;color:var(--text-bright)">🧠 Knowledge Graph Insights</h3>
+                        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('kgInsightsPanel').style.display='none'">✕</button>
+                    </div>
+                    <div id="kgInsightsContent" style="margin-top:16px"></div>
+                </div>
+            </div>
         </div>
 
         <!-- CHAT TAB -->
@@ -1131,24 +1212,40 @@
             if (s.includes('openalex')) return 'source-openalex';
             if (s.includes('crossref')) return 'source-crossref';
             if (s.includes('pubmed')) return 'source-pubmed';
+            if (s.includes('core')) return 'source-core';
+            if (s.includes('google')) return 'source-google';
             return 'source-arxiv';
         }
 
         function displaySearchResults(papers, container) {
             if (!papers.length) { container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔍</div><p>No papers found</p></div>'; return; }
-            container.innerHTML = `<div class="alert alert-success">✅ Found ${papers.length} papers</div>`;
-            papers.forEach((paper, i) => {
+
+            // Separate high and low relevance
+            const HIGH_REL = 80;
+            const highRel = papers.filter(p => (p.relevance_score || 0) >= HIGH_REL);
+            const lowRel  = papers.filter(p => (p.relevance_score || 0) < HIGH_REL);
+            const hasLowRel = lowRel.length > 0;
+
+            container.innerHTML = `<div class="alert alert-success">✅ Found ${papers.length} papers &nbsp;·&nbsp; <strong>${highRel.length}</strong> highly relevant (≥80%)</div>`;
+
+            function renderCard(paper, i) {
                 const card = document.createElement('div');
                 card.className = 'paper-card';
                 card.style.animationDelay = `${i * 0.05}s`;
-                const abstractText = paper.abstract ? paper.abstract.substring(0, 300) : 'No abstract available';
                 const fullAbstract = paper.abstract || 'No abstract available';
+
+                const rscore = paper.relevance_score || 0;
+                let rClass = 'rel-high', rLabel = `${rscore}% Relevant`;
+                if (rscore < 50) { rClass = 'rel-low'; }
+                else if (rscore < 80) { rClass = 'rel-mid'; }
+
                 card.innerHTML = `
                 <h3>${paper.title}</h3>
                 <div class="paper-meta">
                     <span>📅 ${paper.year || 'N/A'}</span>
                     <span>📊 ${paper.citations || 0} citations</span>
                     <span class="source-badge ${getSourceClass(paper.source)}">${paper.source || 'Unknown'}</span>
+                    <span class="relevance-badge ${rClass}">🎯 ${rLabel}</span>
                     ${paper.journal ? `<span>📖 ${paper.journal}</span>` : ''}
                 </div>
                 <div class="paper-authors">👥 ${(paper.authors || []).slice(0, 5).join(', ')}${(paper.authors || []).length > 5 ? ' et al.' : ''}</div>
@@ -1160,8 +1257,31 @@
                     ${paper.doi ? `<a href="https://doi.org/${paper.doi}" target="_blank">🔖 DOI</a>` : ''}
                     <button onclick="copyCitation(${i})">📋 Copy Citation</button>
                 </div>`;
-                container.appendChild(card);
-            });
+                return card;
+            }
+
+            highRel.forEach((p, i) => container.appendChild(renderCard(p, papers.indexOf(p))));
+
+            if (hasLowRel) {
+                const toggleBtn = document.createElement('button');
+                toggleBtn.className = 'btn btn-secondary'; toggleBtn.style.cssText = 'display:block;margin:16px auto;font-size:0.82em;';
+                toggleBtn.textContent = `▼ Show ${lowRel.length} less relevant papers (<80%)`;
+                let showingLow = false;
+                const lowContainer = document.createElement('div');
+                lowContainer.style.display = 'none';
+                lowRel.forEach((p, i) => lowContainer.appendChild(renderCard(p, papers.indexOf(p))));
+                toggleBtn.onclick = () => {
+                    showingLow = !showingLow;
+                    lowContainer.style.display = showingLow ? '' : 'none';
+                    toggleBtn.textContent = showingLow ? `▲ Hide less relevant papers` : `▼ Show ${lowRel.length} less relevant papers (<80%)`;
+                };
+                container.appendChild(toggleBtn);
+                container.appendChild(lowContainer);
+            }
+
+            // Show the Research Gap Finder button
+            document.getElementById('btnGapFinder').style.display = '';
+            document.getElementById('gapFinderSection').style.display = 'none';
         }
 
         function toggleAbstract(i) {
@@ -1253,17 +1373,27 @@
                     document.getElementById('kgStats').innerHTML = `<div class="alert alert-success">✅ ${data.data.nodes.length} nodes, ${data.data.edges.length} relationships</div>`;
                     const nodes = new vis.DataSet(data.data.nodes.map(n => ({
                         id: n.id, label: n.label, title: n.title || n.label, group: n.group, value: n.value || 1,
-                        color: n.group === 'Paper' ? '#00d2ff' : n.group === 'Author' ? '#ff6b9d' : '#00e676',
-                        shape: n.group === 'Paper' ? 'dot' : 'box',
-                        font: { color: '#e8e8f0', size: 11 }
+                        color: {
+                            background: n.group === 'Paper' ? '#1a2a4a' : n.group === 'Author' ? '#2a1a3a' : '#0d2a1a',
+                            border: n.group === 'Paper' ? '#00d2ff' : n.group === 'Author' ? '#ff6b9d' : '#00e676',
+                            highlight: { background: n.group === 'Paper' ? '#003d6b' : n.group === 'Author' ? '#5a1040' : '#004d2a', border: '#fff' }
+                        },
+                        shape: n.group === 'Paper' ? 'ellipse' : n.group === 'Author' ? 'box' : 'diamond',
+                        font: { color: '#ffffff', size: 13, bold: true, face: 'Inter' },
+                        borderWidth: 2, size: n.group === 'Paper' ? Math.max(20, Math.min(40, (n.value || 1) * 2)) : 20
                     })));
-                    const edges = new vis.DataSet(data.data.edges.map(e => ({ ...e, color: { color: 'rgba(255,255,255,0.15)', highlight: '#00d2ff' } })));
+                    const edges = new vis.DataSet(data.data.edges.map(e => ({
+                        ...e,
+                        color: { color: 'rgba(0,210,255,0.35)', highlight: '#ffab40', hover: 'rgba(255,171,64,0.6)' },
+                        width: 1.5, smooth: { type: 'continuous' }
+                    })));
                     if (network) network.destroy();
+                    networkDiv.style.background = '#0a0a1a';
                     network = new vis.Network(networkDiv, { nodes, edges }, {
-                        nodes: { scaling: { min: 10, max: 30 }, font: { face: 'Inter' } },
-                        edges: { width: 0.5, smooth: { type: 'continuous' } },
-                        physics: { stabilization: false, barnesHut: { gravitationalConstant: -50000, springConstant: 0.001, springLength: 200 } },
-                        interaction: { tooltipDelay: 200, hideEdgesOnDrag: true },
+                        nodes: { scaling: { min: 18, max: 40 }, font: { face: 'Inter' } },
+                        edges: { width: 1.5, smooth: { type: 'continuous' }, arrows: { to: { enabled: true, scaleFactor: 0.5 } } },
+                        physics: { stabilization: { iterations: 100 }, barnesHut: { gravitationalConstant: -50000, springConstant: 0.001, springLength: 200 } },
+                        interaction: { tooltipDelay: 200, hideEdgesOnDrag: true, hover: true },
                         layout: { improvedLayout: true }
                     });
                     showToast('Graph loaded!', 'success');
@@ -1289,8 +1419,16 @@
                 try {
                     const response = await fetch('/api/pdf/upload', { method: 'POST', body: formData });
                     const data = await response.json();
-                    if (data.success) { item.innerHTML = `<span>📄 ${file.name}</span><span style="color:var(--success)">✅ Ready</span>`; uploadedDocs.push(data.doc_id); showToast(`${file.name} uploaded!`, 'success'); }
-                    else { item.innerHTML = `<span>📄 ${file.name}</span><span style="color:var(--error)">❌ Failed</span>`; showToast(data.error, 'error'); }
+                    if (data.success) {
+                        const icon = data.rag_enabled === false ? '⚠️' : '✅';
+                        const note = data.rag_enabled === false ? ' (saved — start Ollama to chat)' : ' Ready';
+                        item.innerHTML = `<span>📄 ${file.name}</span><span style="color:${data.rag_enabled===false?'var(--warning, #ffab40)':'var(--success)'}">${icon}${note}</span>`;
+                        if (data.doc_id) uploadedDocs.push(data.doc_id);
+                        showToast(data.message, data.rag_enabled === false ? 'info' : 'success');
+                    } else {
+                        item.innerHTML = `<span>📄 ${file.name}</span><span style="color:var(--error)">❌ ${data.error}</span>`;
+                        showToast(data.error, 'error');
+                    }
                 } catch (error) { item.innerHTML = `<span>📄 ${file.name}</span><span style="color:var(--error)">❌ Error</span>`; }
             }
             const emptyState = document.querySelector('#chatMessages .empty-state');
@@ -1298,6 +1436,11 @@
         }
 
         // === CHAT ===
+        function renderMarkdown(text) {
+            if (typeof marked !== 'undefined') return marked.parse(text || '');
+            return (text || '').replace(/\n/g, '<br>');
+        }
+
         async function sendMessage() {
             const input = document.getElementById('chatInput');
             const message = input.value.trim(); if (!message) return;
@@ -1313,7 +1456,7 @@
                 const response = await fetch('/api/rag/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message }) });
                 const data = await response.json(); loadingMsg.remove();
                 const assistantMsg = document.createElement('div'); assistantMsg.className = 'message assistant';
-                assistantMsg.textContent = data.success ? data.response : `Error: ${data.error}`;
+                assistantMsg.innerHTML = data.success ? renderMarkdown(data.response) : `<span style="color:var(--error)">Error: ${data.error}</span>`;
                 messagesDiv.appendChild(assistantMsg); messagesDiv.scrollTop = messagesDiv.scrollHeight;
             } catch (error) { loadingMsg.textContent = `Error: ${error.message}`; }
         }
@@ -1331,15 +1474,107 @@
             loadingMsg.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
             messagesDiv.appendChild(loadingMsg);
             try {
-                const response = await fetch('/api/rag/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'Compare the documents on: ' + aspect }) });
+                const response = await fetch('/api/rag/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'Compare the documents in a structured table showing differences in: ' + aspect + '. Use markdown tables.' }) });
                 const data = await response.json(); loadingMsg.remove();
                 const msg = document.createElement('div'); msg.className = 'message assistant';
-                msg.textContent = data.success ? data.response : `Error: ${data.error}`;
+                msg.innerHTML = data.success ? renderMarkdown(data.response) : `<span style="color:var(--error)">Error: ${data.error}</span>`;
                 messagesDiv.appendChild(msg); messagesDiv.scrollTop = messagesDiv.scrollHeight;
             } catch (error) { loadingMsg.textContent = `Error: ${error.message}`; }
         }
 
         document.getElementById('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+
+        // === RESEARCH GAP FINDER ===
+        async function findResearchGaps() {
+            if (!searchResults.length) { showToast('Run a search first!', 'error'); return; }
+            const section = document.getElementById('gapFinderSection');
+            const content = document.getElementById('gapContent');
+            section.style.display = '';
+            content.innerHTML = '<div class="alert alert-info"><span class="loader"></span> Analyzing papers with AI...</div>';
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            try {
+                const query = document.getElementById('query').value;
+                const resp = await fetch('/api/research/gaps', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ papers: searchResults, query })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    content.innerHTML = `
+                        <p style="font-size:0.78em;color:var(--text-dim);margin-bottom:12px">Analyzed ${data.papers_analyzed} papers</p>
+                        <div class="gap-content">${renderMarkdown(data.analysis)}</div>`;
+                    showToast('Research gap analysis complete!', 'success');
+                } else {
+                    content.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+                    showToast(data.error, 'error');
+                }
+            } catch (err) {
+                content.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+            }
+        }
+
+        // === KG INSIGHTS ===
+        async function generateKGInsights() {
+            const panel = document.getElementById('kgInsightsPanel');
+            const content = document.getElementById('kgInsightsContent');
+            panel.style.display = '';
+            content.innerHTML = '<div class="alert alert-info"><span class="loader"></span> Generating insights...</div>';
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            try {
+                const resp = await fetch('/api/kg/insights');
+                const data = await resp.json();
+                if (!data.success) { content.innerHTML = `<div class="alert alert-error">${data.error}</div>`; return; }
+                const s = data.structured;
+                let html = '<div class="insights-grid">';
+
+                // Top Authors card
+                if (s.top_authors && s.top_authors.length) {
+                    html += '<div class="insight-card"><h4>👤 Top Authors</h4>';
+                    s.top_authors.forEach(a => html += `<div class="insight-item"><span class="insight-item-name">${a.name}</span><span class="insight-item-val">${a.papers} papers</span></div>`);
+                    html += '</div>';
+                }
+
+                // Top Fields card
+                if (s.top_fields && s.top_fields.length) {
+                    html += '<div class="insight-card"><h4>🔬 Top Research Fields</h4>';
+                    s.top_fields.forEach(f => html += `<div class="insight-item"><span class="insight-item-name">${f.name}</span><span class="insight-item-val">${f.papers} papers</span></div>`);
+                    html += '</div>';
+                }
+
+                // Most Cited card
+                if (s.top_cited && s.top_cited.length) {
+                    html += '<div class="insight-card"><h4>⭐ Most Cited Papers</h4>';
+                    s.top_cited.forEach(p => html += `<div class="insight-item"><span class="insight-item-name" title="${p.title}">${p.title.substring(0,45)}...</span><span class="insight-item-val">${p.citations?.toLocaleString()} cit.</span></div>`);
+                    html += '</div>';
+                }
+
+                html += '</div>';
+
+                // AI narrative
+                if (data.ai_summary) {
+                    html += `<div class="ai-summary-box"><strong style="display:block;margin-bottom:8px;color:var(--accent)">🧠 AI Analysis</strong>${renderMarkdown(data.ai_summary)}</div>`;
+                }
+
+                content.innerHTML = html;
+                showToast('Insights generated!', 'success');
+            } catch (err) {
+                content.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+            }
+        }
+
+        // === CLEAR KNOWLEDGE GRAPH ===
+        async function clearKnowledgeGraph() {
+            if (!confirm('Are you sure you want to clear all papers from the knowledge graph? This cannot be undone.')) return;
+            try {
+                const resp = await fetch('/api/kg/clear', { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast('Knowledge graph cleared!', 'success');
+                    document.getElementById('kgInsightsPanel').style.display = 'none';
+                    loadKGStats();
+                } else { showToast(data.error, 'error'); }
+            } catch (err) { showToast(err.message, 'error'); }
+        }
 
         // === STATISTICS & CHARTS ===
         async function loadAllStats() {

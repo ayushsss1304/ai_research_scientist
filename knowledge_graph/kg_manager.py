@@ -439,3 +439,70 @@ class KnowledgeGraphManager:
             "nodes": list(unique_nodes),
             "edges": edges
         }
+
+    def clear_graph(self) -> bool:
+        """Delete all nodes and relationships from the knowledge graph."""
+        try:
+            with self.driver.session() as session:
+                session.run("MATCH (n) DETACH DELETE n")
+            logger.info("Knowledge graph cleared successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Error clearing graph: {e}")
+            return False
+
+    def get_insights_data(self) -> Dict:
+        """Retrieve raw data for AI insight generation."""
+        insights = {}
+        try:
+            with self.driver.session() as session:
+                # Top 5 authors by paper count
+                result = session.run("""
+                    MATCH (a:Author)-[:AUTHORED]->(p:Paper)
+                    RETURN a.name AS author, count(p) AS papers
+                    ORDER BY papers DESC LIMIT 5
+                """)
+                insights['top_authors'] = [
+                    {'name': r['author'], 'papers': r['papers']} for r in result
+                ]
+
+                # Top 5 research fields
+                result = session.run("""
+                    MATCH (p:Paper)-[:IN_FIELD]->(f:Field)
+                    RETURN f.name AS field, count(p) AS papers
+                    ORDER BY papers DESC LIMIT 5
+                """)
+                insights['top_fields'] = [
+                    {'name': r['field'], 'papers': r['papers']} for r in result
+                ]
+
+                # Top 5 most-cited papers
+                result = session.run("""
+                    MATCH (p:Paper)
+                    WHERE p.citations IS NOT NULL AND p.citations > 0
+                    RETURN p.title AS title, p.citations AS citations, p.year AS year, p.source AS source
+                    ORDER BY p.citations DESC LIMIT 5
+                """)
+                insights['top_cited'] = [
+                    {'title': r['title'], 'citations': r['citations'],
+                     'year': r['year'], 'source': r['source']} for r in result
+                ]
+
+                # Year distribution
+                result = session.run("""
+                    MATCH (p:Paper)
+                    WHERE p.year IS NOT NULL AND p.year > 2000
+                    RETURN p.year AS year, count(p) AS papers
+                    ORDER BY year
+                """)
+                insights['year_dist'] = [
+                    {'year': r['year'], 'papers': r['papers']} for r in result
+                ]
+
+                # Total stats
+                stats = self.get_statistics()
+                insights['stats'] = stats
+
+        except Exception as e:
+            logger.error(f"Error getting insights data: {e}")
+        return insights
