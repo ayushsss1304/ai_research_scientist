@@ -25,6 +25,7 @@ env/
 Thumbs.db
 .DS_Store
 desktop.ini
+~$*.docx
 
 # Data & Storage (generated at runtime)
 data/

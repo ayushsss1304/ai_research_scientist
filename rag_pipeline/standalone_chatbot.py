@@ -220,7 +220,7 @@ class StandaloneRAGChatbot:
         
         # Extract text based on file type
         from pdf_processing.pdf_processor import PDFProcessor
-        processor = PDFProcessor()
+        processor = PDFProcessor(use_ocr=False)
         result = processor.process_document(file_path)
         
         if result['error']:

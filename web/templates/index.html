@@ -252,6 +252,31 @@
             margin-top: 8px;
         }
 
+        .source-group {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 14px;
+            margin-top: 12px;
+            background: var(--bg-primary);
+        }
+
+        .source-group-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+            font-size: 0.78em;
+            color: var(--text-bright);
+            font-weight: 600;
+        }
+
+        .source-group-title span {
+            color: var(--text-dim);
+            font-weight: 400;
+            font-size: 0.92em;
+        }
+
         .checkbox-group label {
             display: flex;
             align-items: center;
@@ -379,6 +404,28 @@
             border: 1px solid var(--border-hover);
         }
 
+        .source-scopus {
+            color: #d9f99d !important;
+            border-color: rgba(217, 249, 157, 0.45);
+            background: rgba(77, 124, 15, 0.18);
+        }
+
+        .source-ieee {
+            color: #93c5fd !important;
+            border-color: rgba(147, 197, 253, 0.45);
+            background: rgba(37, 99, 235, 0.16);
+        }
+
+        .quality-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7em !important;
+            font-weight: 600;
+            color: #d9f99d !important;
+            border: 1px solid rgba(217, 249, 157, 0.45);
+            background: rgba(77, 124, 15, 0.18);
+        }
+
         .paper-authors {
             font-size: 0.8em;
             color: var(--text);
@@ -441,6 +488,56 @@
         .paper-actions button:hover {
             background: var(--border);
             color: var(--text-bright);
+        }
+
+        .workspace-bar {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) auto;
+            gap: 12px;
+            align-items: end;
+            margin-bottom: 20px;
+        }
+
+        .workspace-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .workspace-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+            background: var(--bg-primary);
+            cursor: pointer;
+        }
+
+        .workspace-card.active {
+            border-color: var(--success);
+        }
+
+        .detail-panel {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-top: 20px;
+            background: var(--bg-card);
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin: 16px 0;
+        }
+
+        .detail-item {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 10px;
+            background: var(--bg-primary);
+            font-size: 0.8em;
         }
 
         /* Chat */
@@ -989,7 +1086,10 @@
             <p>Powered by AI & Knowledge Graphs</p>
         </div>
         <div class="nav-items">
-            <div class="nav-item active" onclick="showTab('search')" id="nav-search">
+            <div class="nav-item active" onclick="showTab('dashboard')" id="nav-dashboard">
+                <span class="nav-icon"></span> Dashboard
+            </div>
+            <div class="nav-item" onclick="showTab('search')" id="nav-search">
                 <span class="nav-icon"></span> Paper Search
             </div>
             <div class="nav-item" onclick="showTab('graph')" id="nav-graph">
@@ -997,9 +1097,6 @@
             </div>
             <div class="nav-item" onclick="showTab('chat')" id="nav-chat">
                 <span class="nav-icon"></span> PDF Chat
-            </div>
-            <div class="nav-item" onclick="showTab('plagiarism')" id="nav-plagiarism">
-                <span class="nav-icon"></span> Plagiarism Check
             </div>
             <div class="nav-item" onclick="showTab('stats')" id="nav-stats">
                 <span class="nav-icon"></span> Statistics
@@ -1012,11 +1109,41 @@
     </nav>
 
     <main class="main">
+        <!-- DASHBOARD TAB -->
+        <div id="dashboard" class="tab-content active">
+            <div class="page-header">
+                <h2>Research Dashboard</h2>
+                <p>Open a workspace, save papers, and continue your research flow from one place.</p>
+            </div>
+            <div class="glass-card">
+                <div class="workspace-bar">
+                    <div class="form-group" style="margin-bottom:0">
+                        <label>Active Workspace</label>
+                        <select id="workspaceSelect" onchange="switchWorkspace(this.value)"></select>
+                    </div>
+                    <button class="btn btn-primary" onclick="createWorkspace()">Create Workspace</button>
+                </div>
+                <div id="dashboardStats" class="stats-grid"></div>
+                <div id="workspaceList" class="workspace-list"></div>
+            </div>
+            <div class="glass-card" style="margin-top:20px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+                    <div>
+                        <h3 style="font-size:1em;color:var(--text-bright);font-weight:500;">Saved Paper Library</h3>
+                        <p style="font-size:0.8em;color:var(--text-dim);margin-top:4px;">Papers saved to the active workspace.</p>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="showTab('search')">Search Papers</button>
+                </div>
+                <div id="savedPapers" class="results"></div>
+            </div>
+            <div id="paperDetailPanel" class="detail-panel" style="display:none"></div>
+        </div>
+
         <!-- SEARCH TAB -->
-        <div id="search" class="tab-content active">
+        <div id="search" class="tab-content">
             <div class="page-header">
                 <h2> Paper Search</h2>
-                <p>Search millions of research papers from multiple sources</p>
+                <p>Search verified Scopus and IEEE records first, then expand to open academic sources when you need broader coverage.</p>
             </div>
             <div class="glass-card">
                 <form id="searchForm">
@@ -1026,16 +1153,25 @@
                             required>
                     </div>
                     <div class="form-group">
-                        <label> Sources <span style="font-size:0.75em;color:var(--text-dim);font-weight:400">(papers ≥80% relevance shown by default)</span></label>
-                        <div class="checkbox-group">
-                            <label><input type="checkbox" name="sources" value="arxiv" checked> ArXiv</label>
-                            <label><input type="checkbox" name="sources" value="semantic_scholar" checked> Semantic Scholar</label>
-                            <label><input type="checkbox" name="sources" value="openalex" checked> OpenAlex</label>
-                            <label><input type="checkbox" name="sources" value="crossref"> CrossRef</label>
-                            <label><input type="checkbox" name="sources" value="pubmed"> PubMed</label>
-                            <label><input type="checkbox" name="sources" value="ieee"> IEEE Xplore</label>
-                            <label><input type="checkbox" name="sources" value="core"> CORE</label>
-                            <label><input type="checkbox" name="sources" value="google_scholar"> Google Scholar</label>
+                        <label> Sources <span style="font-size:0.75em;color:var(--text-dim);font-weight:400">(verified sources are selected by default)</span></label>
+                        <div class="source-group">
+                            <div class="source-group-title">Verified academic sources <span>Best for professional reports</span></div>
+                            <div class="checkbox-group">
+                                <label><input type="checkbox" name="sources" value="scopus" checked> Scopus</label>
+                                <label><input type="checkbox" name="sources" value="ieee" checked> IEEE Xplore</label>
+                            </div>
+                        </div>
+                        <div class="source-group">
+                            <div class="source-group-title">Discovery and open-access sources <span>Best for abstracts and PDFs</span></div>
+                            <div class="checkbox-group">
+                                <label><input type="checkbox" name="sources" value="arxiv"> ArXiv</label>
+                                <label><input type="checkbox" name="sources" value="semantic_scholar" checked> Semantic Scholar</label>
+                                <label><input type="checkbox" name="sources" value="openalex" checked> OpenAlex</label>
+                                <label><input type="checkbox" name="sources" value="crossref"> CrossRef</label>
+                                <label><input type="checkbox" name="sources" value="pubmed"> PubMed</label>
+                                <label><input type="checkbox" name="sources" value="core"> CORE</label>
+                                <label><input type="checkbox" name="sources" value="google_scholar"> Google Scholar</label>
+                            </div>
                         </div>
                     </div>
                     <div class="filter-group">
@@ -1053,7 +1189,8 @@
                     <div class="btn-group">
                         <button type="submit" class="btn btn-primary"> Search Papers</button>
                         <button type="button" class="btn btn-success" onclick="addToGraph()"> Add to KG</button>
-                        <button type="button" id="btnGapFinder" class="btn btn-secondary" onclick="findResearchGaps()" style="display:none;background:linear-gradient(135deg,rgba(123,47,247,0.3),rgba(0,210,255,0.2));border-color:rgba(123,47,247,0.5)"> Find Research Gaps</button>
+                        <button type="button" id="btnGapFinder" class="btn btn-secondary" onclick="findResearchGaps(false)" style="display:none;background:linear-gradient(135deg,rgba(123,47,247,0.3),rgba(0,210,255,0.2));border-color:rgba(123,47,247,0.5)"> Find Research Gaps</button>
+                        <button type="button" id="btnDeepGapFinder" class="btn btn-secondary" onclick="findResearchGaps(true)" style="display:none;border-color:rgba(23,201,100,0.45);color:var(--success)"> Deep Research Gaps</button>
                         <button type="button" class="btn btn-secondary" onclick="exportResults('json')"> JSON</button>
                         <button type="button" class="btn btn-secondary" onclick="exportResults('csv')"> CSV</button>
                         <button type="button" class="btn btn-secondary" onclick="exportResults('bibtex')"> BibTeX</button>
@@ -1150,39 +1287,6 @@
             </div>
         </div>
 
-        <!-- PLAGIARISM CHECK TAB -->
-        <div id="plagiarism" class="tab-content">
-            <div class="page-header">
-                <h2> Plagiarism Checker</h2>
-                <p>Detect similarity against uploaded PDFs and Knowledge Graph papers</p>
-            </div>
-
-            <div class="glass-card">
-                <div class="form-group">
-                    <label>Paste Text to Check</label>
-                    <textarea id="plagInput" rows="8"
-                        placeholder="Paste the content you want to check for plagiarism here (minimum 50 characters)..."
-                        style="width:100%;resize:vertical;"></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label>Check Against</label>
-                    <div class="checkbox-group">
-                        <label><input type="checkbox" id="plagCheckDocs" checked> Uploaded PDF Documents</label>
-                        <label><input type="checkbox" id="plagCheckKG" checked> Knowledge Graph Papers</label>
-                    </div>
-                </div>
-
-                <button class="btn btn-primary" id="plagBtn" onclick="checkPlagiarism()">
-                     Check for Plagiarism
-                </button>
-            </div>
-
-            <!-- Results -->
-            <div id="plagResults" style="margin-top:24px;"></div>
-        </div>
-
-
         <!-- STATISTICS TAB -->
         <div id="stats" class="tab-content">
             <div class="page-header">
@@ -1213,6 +1317,9 @@
         let searchResults = [];
         let uploadedDocs = [];
         let chartInstances = {};
+        let workspaces = [];
+        let currentWorkspaceId = null;
+        let savedPapers = [];
 
         // === TOAST NOTIFICATIONS ===
         function showToast(message, type = 'info') {
@@ -1230,8 +1337,189 @@
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             document.getElementById(`nav-${tabName}`).classList.add('active');
             document.getElementById(tabName).classList.add('active');
-            if (tabName === 'graph') loadKGStats();
+            if (tabName === 'dashboard') loadDashboard();
+            else if (tabName === 'graph') loadKGStats();
             else if (tabName === 'stats') loadAllStats();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => loadDashboard());
+
+        async function loadDashboard() {
+            try {
+                const resp = await fetch('/api/workspaces');
+                const data = await resp.json();
+                if (!data.success) { showToast(data.error, 'error'); return; }
+                workspaces = data.workspaces || [];
+                currentWorkspaceId = data.current_workspace_id;
+                renderWorkspaces();
+                await loadSavedPapers();
+            } catch (error) {
+                showToast(`Workspace load failed: ${error.message}`, 'error');
+            }
+        }
+
+        function renderWorkspaces() {
+            const select = document.getElementById('workspaceSelect');
+            if (select) {
+                select.innerHTML = workspaces.map(w =>
+                    `<option value="${w.id}" ${w.id === currentWorkspaceId ? 'selected' : ''}>${escapeHtml(w.name)}</option>`
+                ).join('');
+            }
+
+            const list = document.getElementById('workspaceList');
+            if (!list) return;
+            list.innerHTML = workspaces.map(w => `
+                <div class="workspace-card ${w.id === currentWorkspaceId ? 'active' : ''}" onclick="switchWorkspace(${w.id})">
+                    <div style="font-size:0.9em;color:var(--text-bright);font-weight:500;">${escapeHtml(w.name)}</div>
+                    <div style="font-size:0.75em;color:var(--text-dim);margin-top:6px;">${escapeHtml(w.description || 'No description')}</div>
+                    <div style="font-size:0.75em;color:var(--text-dim);margin-top:10px;">${w.paper_count || 0} saved papers</div>
+                </div>
+            `).join('');
+        }
+
+        async function createWorkspace() {
+            const name = prompt('Workspace name:', 'New Research Topic');
+            if (!name) return;
+            const description = prompt('Short description:', '') || '';
+            try {
+                const resp = await fetch('/api/workspaces', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, description })
+                });
+                const data = await resp.json();
+                if (!data.success) { showToast(data.error, 'error'); return; }
+                showToast('Workspace created', 'success');
+                await loadDashboard();
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        async function switchWorkspace(workspaceId) {
+            try {
+                const resp = await fetch('/api/workspaces/current', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ workspace_id: Number(workspaceId) })
+                });
+                const data = await resp.json();
+                if (!data.success) { showToast(data.error, 'error'); return; }
+                currentWorkspaceId = Number(workspaceId);
+                renderWorkspaces();
+                await loadSavedPapers();
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        async function loadSavedPapers() {
+            if (!currentWorkspaceId) return;
+            const resp = await fetch(`/api/workspaces/${currentWorkspaceId}/papers`);
+            const data = await resp.json();
+            if (!data.success) { showToast(data.error, 'error'); return; }
+            savedPapers = data.papers || [];
+            renderDashboardStats(data.stats || {});
+            renderSavedPapers();
+        }
+
+        function renderDashboardStats(stats) {
+            const statsDiv = document.getElementById('dashboardStats');
+            if (!statsDiv) return;
+            statsDiv.innerHTML = `
+                <div class="stat-card"><div class="stat-value">${stats.saved_papers || 0}</div><div class="stat-label">Saved Papers</div></div>
+                <div class="stat-card"><div class="stat-value">${stats.scopus_verified || 0}</div><div class="stat-label">Scopus Verified</div></div>
+                <div class="stat-card"><div class="stat-value">${stats.open_access || 0}</div><div class="stat-label">Open/PDF Available</div></div>
+                <div class="stat-card"><div class="stat-value">${(stats.sources || []).length}</div><div class="stat-label">Sources</div></div>
+            `;
+        }
+
+        function renderSavedPapers() {
+            const container = document.getElementById('savedPapers');
+            if (!container) return;
+            if (!savedPapers.length) {
+                container.innerHTML = '<div class="empty-state"><div class="empty-state-icon"></div><p>No saved papers yet. Search and save papers into this workspace.</p></div>';
+                return;
+            }
+            container.innerHTML = '';
+            savedPapers.forEach((item, idx) => {
+                const p = item.paper || {};
+                const card = document.createElement('div');
+                card.className = 'paper-card';
+                card.innerHTML = `
+                    <h3>${escapeHtml(p.title || item.title)}</h3>
+                    <div class="paper-meta">
+                        <span>${p.year || item.year || 'N/A'}</span>
+                        <span>${p.citations || item.citations || 0} citations</span>
+                        <span class="source-badge ${getSourceClass(p.source || item.source)}">${escapeHtml(p.source || item.source || 'Unknown')}</span>
+                        ${p.scopus_verified ? '<span class="quality-badge">Scopus Verified</span>' : ''}
+                    </div>
+                    <div class="paper-authors">${escapeHtml((p.authors || []).slice(0, 5).join(', '))}</div>
+                    <div class="paper-actions">
+                        <button onclick="showPaperDetail(savedPapers[${idx}].paper, true)">Details</button>
+                        <button onclick="deleteSavedPaper(${item.id})">Remove</button>
+                    </div>`;
+                container.appendChild(card);
+            });
+        }
+
+        async function savePaperToWorkspace(index) {
+            if (!currentWorkspaceId) await loadDashboard();
+            const paper = searchResults[index];
+            if (!paper) return;
+            try {
+                const resp = await fetch(`/api/workspaces/${currentWorkspaceId}/papers`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ paper })
+                });
+                const data = await resp.json();
+                if (!data.success) { showToast(data.error, 'error'); return; }
+                showToast('Paper saved to workspace', 'success');
+                await loadDashboard();
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        async function deleteSavedPaper(savedId) {
+            if (!confirm('Remove this paper from the workspace?')) return;
+            const resp = await fetch(`/api/workspaces/${currentWorkspaceId}/papers/${savedId}`, { method: 'DELETE' });
+            const data = await resp.json();
+            if (!data.success) { showToast(data.error, 'error'); return; }
+            showToast('Paper removed', 'info');
+            await loadSavedPapers();
+        }
+
+        function showPaperDetail(paper, fromDashboard = false) {
+            const panel = document.getElementById('paperDetailPanel');
+            if (!panel) return;
+            const metrics = paper.source_metrics || {};
+            const fields = paper.subject_areas || paper.fields || paper.keywords || [];
+            panel.style.display = '';
+            panel.innerHTML = `
+                <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
+                    <h3 style="font-size:1.05em;color:var(--text-bright);font-weight:500;">${escapeHtml(paper.title || 'Untitled paper')}</h3>
+                    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('paperDetailPanel').style.display='none'">Close</button>
+                </div>
+                <div class="detail-grid">
+                    <div class="detail-item"><strong>Source</strong><br>${escapeHtml(paper.source || 'Unknown')}</div>
+                    <div class="detail-item"><strong>Year</strong><br>${paper.year || 'N/A'}</div>
+                    <div class="detail-item"><strong>Citations</strong><br>${paper.citations || 0}</div>
+                    <div class="detail-item"><strong>Scopus</strong><br>${paper.scopus_verified ? 'Verified' : 'Not verified'}</div>
+                    <div class="detail-item"><strong>CiteScore</strong><br>${escapeHtml(metrics.cite_score || 'N/A')}</div>
+                    <div class="detail-item"><strong>SJR / SNIP</strong><br>${escapeHtml([metrics.sjr, metrics.snip].filter(Boolean).join(' / ') || 'N/A')}</div>
+                </div>
+                <p style="font-size:0.82em;color:var(--text-dim);margin-bottom:10px;">${escapeHtml((paper.authors || []).join(', '))}</p>
+                <p style="font-size:0.82em;color:var(--text-dim);margin-bottom:10px;">${escapeHtml(fields.slice(0, 8).join(', '))}</p>
+                <div class="paper-abstract expanded">${escapeHtml(paper.abstract || 'No abstract available')}</div>
+                <div class="paper-actions">
+                    ${paper.url ? `<a href="${paper.url}" target="_blank">Open Link</a>` : ''}
+                    ${paper.pdf_url ? `<a href="${paper.pdf_url}" target="_blank">Open PDF</a>` : ''}
+                    ${paper.doi ? `<a href="https://doi.org/${paper.doi}" target="_blank">DOI</a>` : ''}
+                </div>`;
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            if (!fromDashboard) showTab('dashboard');
         }
 
         // === PAPER SEARCH ===
@@ -1261,6 +1549,7 @@
 
         function getSourceClass(source) {
             const s = (source || '').toLowerCase();
+            if (s.includes('scopus')) return 'source-scopus';
             if (s.includes('arxiv')) return 'source-arxiv';
             if (s.includes('semantic')) return 'source-semantic';
             if (s.includes('ieee')) return 'source-ieee';
@@ -1270,6 +1559,12 @@
             if (s.includes('core')) return 'source-core';
             if (s.includes('google')) return 'source-google';
             return 'source-arxiv';
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, ch => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[ch]));
         }
 
         function displaySearchResults(papers, container) {
@@ -1288,6 +1583,23 @@
                 card.className = 'paper-card';
                 card.style.animationDelay = `${i * 0.05}s`;
                 const fullAbstract = paper.abstract || 'No abstract available';
+                const qualityBadges = [
+                    paper.scopus_verified ? '<span class="quality-badge">Scopus Verified</span>' : '',
+                    paper.open_access ? '<span class="quality-badge">Open Access</span>' : '',
+                    paper.pdf_url ? '<span class="quality-badge">PDF Available</span>' : '',
+                    paper.document_type ? `<span class="quality-badge">${escapeHtml(paper.document_type)}</span>` : ''
+                ].join('');
+                const sourceMetrics = paper.source_metrics || {};
+                const metricParts = [
+                    sourceMetrics.cite_score ? `CiteScore ${escapeHtml(sourceMetrics.cite_score)}` : '',
+                    sourceMetrics.sjr ? `SJR ${escapeHtml(sourceMetrics.sjr)}` : '',
+                    sourceMetrics.snip ? `SNIP ${escapeHtml(sourceMetrics.snip)}` : ''
+                ].filter(Boolean);
+                const subjects = (paper.subject_areas || paper.fields || []).slice(0, 4).map(escapeHtml).join(', ');
+                const affiliations = (paper.affiliations || []).slice(0, 3)
+                    .map(a => [a.name, a.country].filter(Boolean).join(', '))
+                    .map(escapeHtml)
+                    .join(' | ');
 
                 const rscore = paper.relevance_score || 0;
                 let rClass = 'rel-high', rLabel = `${rscore}% Relevant`;
@@ -1295,22 +1607,28 @@
                 else if (rscore < 80) { rClass = 'rel-mid'; }
 
                 card.innerHTML = `
-                <h3>${paper.title}</h3>
+                <h3>${escapeHtml(paper.title)}</h3>
                 <div class="paper-meta">
                     <span> ${paper.year || 'N/A'}</span>
                     <span> ${paper.citations || 0} citations</span>
-                    <span class="source-badge ${getSourceClass(paper.source)}">${paper.source || 'Unknown'}</span>
+                    <span class="source-badge ${getSourceClass(paper.source)}">${escapeHtml(paper.source || 'Unknown')}</span>
                     <span class="relevance-badge ${rClass}"> ${rLabel}</span>
-                    ${paper.journal ? `<span> ${paper.journal}</span>` : ''}
+                    ${qualityBadges}
+                    ${paper.journal ? `<span> ${escapeHtml(paper.journal)}</span>` : ''}
                 </div>
-                <div class="paper-authors"> ${(paper.authors || []).slice(0, 5).join(', ')}${(paper.authors || []).length > 5 ? ' et al.' : ''}</div>
-                <div class="paper-abstract collapsed" id="abs-${i}">${fullAbstract}</div>
+                <div class="paper-authors"> ${escapeHtml((paper.authors || []).slice(0, 5).join(', '))}${(paper.authors || []).length > 5 ? ' et al.' : ''}</div>
+                ${subjects ? `<div class="paper-authors">Subject areas: ${subjects}</div>` : ''}
+                ${affiliations ? `<div class="paper-authors">Affiliations: ${affiliations}</div>` : ''}
+                ${metricParts.length ? `<div class="paper-authors">Journal metrics: ${metricParts.join(' | ')}</div>` : ''}
+                <div class="paper-abstract collapsed" id="abs-${i}">${escapeHtml(fullAbstract)}</div>
                 ${fullAbstract.length > 300 ? `<span class="toggle-abstract" onclick="toggleAbstract(${i})">Show more ▼</span>` : ''}
                 <div class="paper-actions">
                     ${paper.pdf_url ? `<a href="${paper.pdf_url}" target="_blank"> PDF</a>` : ''}
                     ${paper.url ? `<a href="${paper.url}" target="_blank"> Link</a>` : ''}
                     ${paper.doi ? `<a href="https://doi.org/${paper.doi}" target="_blank"> DOI</a>` : ''}
                     <button onclick="copyCitation(${i})">📋 Copy Citation</button>
+                    <button onclick="savePaperToWorkspace(${i})">Save</button>
+                    <button onclick="showPaperDetail(searchResults[${i}], false)">Details</button>
                 </div>`;
                 return card;
             }
@@ -1336,6 +1654,7 @@
 
             // Show the Research Gap Finder button
             document.getElementById('btnGapFinder').style.display = '';
+            document.getElementById('btnDeepGapFinder').style.display = '';
             document.getElementById('gapFinderSection').style.display = 'none';
         }
 
@@ -1540,23 +1859,27 @@
         document.getElementById('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
 
         // === RESEARCH GAP FINDER ===
-        async function findResearchGaps() {
+        async function findResearchGaps(deepResearch = false) {
             if (!searchResults.length) { showToast('Run a search first!', 'error'); return; }
             const section = document.getElementById('gapFinderSection');
             const content = document.getElementById('gapContent');
             section.style.display = '';
-            content.innerHTML = '<div class="alert alert-info"><span class="loader"></span> Analyzing papers with AI...</div>';
+            content.innerHTML = `<div class="alert alert-info"><span class="loader"></span> ${deepResearch ? 'Finding legal open PDFs, extracting temporary evidence, and analyzing gaps...' : 'Analyzing paper metadata and abstracts with AI...'}</div>`;
             section.scrollIntoView({ behavior: 'smooth', block: 'start' });
             try {
                 const query = document.getElementById('query').value;
                 const resp = await fetch('/api/research/gaps', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ papers: searchResults, query })
+                    body: JSON.stringify({ papers: searchResults, query, deepResearch })
                 });
                 const data = await resp.json();
                 if (data.success) {
+                    const deepSummary = data.deep_research && data.deep_evidence
+                        ? `<p style="font-size:0.78em;color:var(--text-dim);margin-bottom:12px">Deep Research: ${data.deep_evidence.filter(e => e.evidence_level === 'full_text').length}/${data.deep_evidence.length} papers used temporary full text. PDFs were deleted after extraction.</p>`
+                        : '';
                     content.innerHTML = `
                         <p style="font-size:0.78em;color:var(--text-dim);margin-bottom:12px">Analyzed ${data.papers_analyzed} papers</p>
+                        ${deepSummary}
                         <div class="gap-content">${renderMarkdown(data.analysis)}</div>`;
                     showToast('Research gap analysis complete!', 'success');
                 } else {
@@ -1695,155 +2018,6 @@
 
         // Initial load
         loadKGStats();
-
-        // =====================================================================
-        // PLAGIARISM CHECKER
-        // =====================================================================
-
-        async function checkPlagiarism() {
-            const text      = document.getElementById('plagInput').value.trim();
-            const checkDocs = document.getElementById('plagCheckDocs').checked;
-            const checkKG   = document.getElementById('plagCheckKG').checked;
-            const resultsDiv = document.getElementById('plagResults');
-            const btn        = document.getElementById('plagBtn');
-
-            if (!text) { showToast('Please paste some text first.', 'error'); return; }
-            if (text.length < 50) { showToast('Text too short — need at least 50 characters.', 'error'); return; }
-            if (!checkDocs && !checkKG) { showToast('Select at least one source to check against.', 'error'); return; }
-
-            btn.disabled = true;
-            btn.innerHTML = '<span class="loader"></span> Checking...';
-            resultsDiv.innerHTML = '<div class="alert alert-info"><span class="loader"></span> Running similarity analysis…</div>';
-
-            try {
-                const resp = await fetch('/api/plagiarism/check', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text, check_docs: checkDocs, check_kg: checkKG })
-                });
-                const data = await resp.json();
-
-                if (!data.success) {
-                    resultsDiv.innerHTML = `<div class="alert alert-error">Error: ${data.error}</div>`;
-                    showToast(data.error, 'error');
-                    return;
-                }
-
-                const r = data.report;
-                renderPlagiarismResults(r, resultsDiv);
-                showToast(`Analysis complete — ${r.verdict} similarity (${r.overall_score}%)`, r.verdict === 'High' ? 'error' : r.verdict === 'Medium' ? 'info' : 'success');
-
-            } catch (err) {
-                resultsDiv.innerHTML = `<div class="alert alert-error">Error: ${err.message}</div>`;
-                showToast(err.message, 'error');
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = ' Check for Plagiarism';
-            }
-        }
-
-        function renderPlagiarismResults(report, container) {
-            const score   = report.overall_score;
-            const verdict = report.verdict;
-            const matches = report.matches || [];
-
-            // Colour logic
-            const color = verdict === 'High' ? '#ef4444' : verdict === 'Medium' ? '#f59e0b' : '#10b981';
-            const bgArc = 'rgba(255,255,255,0.06)';
-
-            // SVG gauge
-            const circumference = 2 * Math.PI * 52;
-            const filled = (score / 100) * circumference;
-
-            const gaugeHTML = `
-            <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:8px;">
-              <svg width="140" height="140" viewBox="0 0 120 120">
-                <circle cx="60" cy="60" r="52" fill="none" stroke="${bgArc}" stroke-width="10"/>
-                <circle cx="60" cy="60" r="52" fill="none" stroke="${color}" stroke-width="10"
-                  stroke-dasharray="${filled} ${circumference - filled}"
-                  stroke-dashoffset="${circumference / 4}"
-                  stroke-linecap="round"
-                  style="transition:stroke-dasharray 0.8s ease;"/>
-                <text x="60" y="56" text-anchor="middle" fill="${color}" font-size="22" font-weight="600" font-family="inherit">${score}%</text>
-                <text x="60" y="74" text-anchor="middle" fill="#aaa" font-size="11" font-family="inherit">${verdict} Similarity</text>
-              </svg>
-            </div>`;
-
-            // Summary bar
-            const summaryHTML = `
-            <div style="background:var(--bg-card);border:1px solid var(--border);border-left:3px solid ${color};border-radius:var(--radius);padding:20px 24px;margin-bottom:24px;">
-              ${gaugeHTML}
-              <p style="text-align:center;font-size:0.78em;color:var(--text-dim);margin-top:4px;">
-                Based on ${matches.length} matched source${matches.length !== 1 ? 's' : ''}
-                · Checked against ${document.getElementById('plagCheckDocs').checked ? 'PDFs' : ''}${document.getElementById('plagCheckDocs').checked && document.getElementById('plagCheckKG').checked ? ' & ' : ''}${document.getElementById('plagCheckKG').checked ? 'KG Papers' : ''}
-              </p>
-              ${report.note ? `<p style="text-align:center;font-size:0.78em;color:var(--text-dim);">${report.note}</p>` : ''}
-            </div>`;
-
-            // Match cards
-            let matchesHTML = '';
-            if (matches.length === 0) {
-                matchesHTML = `<div class="alert alert-info" style="text-align:center;padding:32px;">
-                    No significant similarity found in the selected sources.
-                </div>`;
-            } else {
-                matchesHTML = `<h3 style="font-size:0.85em;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:16px;">
-                    Matched Sources (${matches.length})
-                </h3>`;
-
-                matches.forEach((m, i) => {
-                    const mColor  = m.score >= 80 ? '#ef4444' : m.score >= 50 ? '#f59e0b' : '#10b981';
-                    const badge   = m.score >= 80 ? 'High' : m.score >= 50 ? 'Medium' : 'Low';
-                    const typeTag = m.type === 'KG Paper' ? '🕸 KG' : '📄 PDF';
-                    const methodIcon = m.method === 'Semantic' ? '🤖' : '🔤';
-                    matchesHTML += `
-                    <div style="background:var(--bg-card);border:1px solid var(--border);border-left:3px solid ${mColor};border-radius:var(--radius);padding:18px 20px;margin-bottom:12px;">
-                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-                        <div style="font-size:0.88em;color:var(--text-bright);font-weight:500;max-width:70%;word-break:break-word;">${m.source}</div>
-                        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
-                          <span style="font-size:0.7em;padding:2px 8px;border-radius:99px;border:1px solid ${mColor};color:${mColor};">${badge}</span>
-                          <span style="font-size:0.75em;color:var(--text-dim);">${typeTag}</span>
-                          <span style="font-size:0.85em;font-weight:600;color:${mColor};">${m.score}%</span>
-                        </div>
-                      </div>
-                      <div style="display:flex;gap:10px;margin-bottom:10px;">
-                        <span style="font-size:0.72em;color:var(--text-dim);">${methodIcon} ${m.method} match</span>
-                      </div>
-                      <div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:0.78em;color:var(--text);line-height:1.6;
-                           max-height:80px;overflow:hidden;position:relative;" id="snippet-${i}">
-                        <em>${m.snippet || 'No excerpt available.'}</em>
-                        <div style="position:absolute;bottom:0;left:0;right:0;height:30px;background:linear-gradient(transparent,var(--bg-primary));" id="snip-fade-${i}"></div>
-                      </div>
-                      <button onclick="toggleSnippet(${i})" id="snip-btn-${i}"
-                        style="font-size:0.72em;color:var(--text-dim);background:transparent;border:none;cursor:pointer;padding:6px 0 0;text-decoration:underline;">
-                        Show more ▼
-                      </button>
-                    </div>`;
-                });
-            }
-
-            container.innerHTML = summaryHTML + matchesHTML;
-        }
-
-        function toggleSnippet(i) {
-            const box  = document.getElementById(`snippet-${i}`);
-            const fade = document.getElementById(`snip-fade-${i}`);
-            const btn  = document.getElementById(`snip-btn-${i}`);
-            const expanded = box.style.maxHeight !== '80px' && box.style.maxHeight !== '';
-            if (expanded || box.style.maxHeight === '') {
-                box.style.maxHeight = '80px';
-                box.style.overflow  = 'hidden';
-                fade.style.display  = '';
-                btn.textContent     = 'Show more ▼';
-            } else {
-                box.style.maxHeight = 'none';
-                box.style.overflow  = 'visible';
-                fade.style.display  = 'none';
-                btn.textContent     = 'Show less ▲';
-            }
-        }
-
-
 
         let accTestCaseCount = 0;
         let lastAccReport    = null;

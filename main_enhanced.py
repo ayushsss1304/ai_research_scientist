@@ -38,7 +38,12 @@ def main():
         
         scraper = EnhancedPaperScraper(
             semantic_scholar_api_key=SEMANTIC_SCHOLAR_API_KEY,
-            email="your.email@example.com"
+            ieee_api_key=IEEE_API_KEY,
+            elsevier_api_key=ELSEVIER_API_KEY,
+            pubmed_api_key=PUBMED_API_KEY,
+            core_api_key=CORE_API_KEY,
+            serpapi_key=SERPAPI_KEY,
+            email=USER_EMAIL
         )
         
         papers = scraper.search_all(

@@ -19,8 +19,9 @@ from scrapers.enhanced_paper_scraper import EnhancedPaperScraper
 from knowledge_graph.kg_manager import KnowledgeGraphManager
 from rag_pipeline.ollama_chatbot import OllamaRAGChatbot
 from pdf_processing.pdf_processor import PDFProcessor
-from plagiarism.plagiarism_checker import PlagiarismChecker
 from accuracy.evaluator import ChatbotAccuracyEvaluator
+from research_gap.deep_research import DeepResearchAnalyzer
+from storage.research_store import ResearchStore
 
 # Try to import config
 try:
@@ -34,6 +35,10 @@ except ImportError:
         NEO4J_USER = 'neo4j'
         NEO4J_PASSWORD = 'password'
         USER_EMAIL = 'user@example.com'
+        ELSEVIER_API_KEY = ''
+        PUBMED_API_KEY = ''
+        CORE_API_KEY = ''
+        SERPAPI_KEY = ''
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -50,8 +55,9 @@ scraper = None
 kg_manager = None
 rag_chatbot = None
 pdf_processor = None
-plagiarism_checker = None
 accuracy_evaluator = None
+deep_research_analyzer = None
+research_store = None
 
 def get_scraper():
     global scraper
@@ -59,7 +65,14 @@ def get_scraper():
         scraper = EnhancedPaperScraper(
             semantic_scholar_api_key=config.SEMANTIC_SCHOLAR_API_KEY,
             ieee_api_key=config.IEEE_API_KEY,
-            email=config.USER_EMAIL
+            elsevier_api_key=getattr(config, 'ELSEVIER_API_KEY', ''),
+            pubmed_api_key=getattr(config, 'PUBMED_API_KEY', ''),
+            core_api_key=getattr(config, 'CORE_API_KEY', ''),
+            serpapi_key=getattr(config, 'SERPAPI_KEY', ''),
+            email=config.USER_EMAIL,
+            cache_dir=os.path.join(getattr(config, 'CACHE_DIR', 'data/cache'), 'search'),
+            cache_ttl=getattr(config, 'CACHE_TTL', 3600),
+            max_workers=getattr(config, 'MAX_WORKERS', 5)
         )
     return scraper
 
@@ -91,22 +104,8 @@ def get_rag_chatbot():
 def get_pdf_processor():
     global pdf_processor
     if pdf_processor is None:
-        pdf_processor = PDFProcessor()
+        pdf_processor = PDFProcessor(use_ocr=getattr(config, 'USE_OCR', False))
     return pdf_processor
-
-def get_plagiarism_checker():
-    """Return PlagiarismChecker wired to the active RAG chatbot's stores."""
-    global plagiarism_checker
-    chatbot = get_rag_chatbot()  # may be None if Ollama not running
-    if plagiarism_checker is None or chatbot is None:
-        doc_store = chatbot.document_store if chatbot else None
-        emb_mgr   = chatbot.embedding_manager if chatbot else None
-        plagiarism_checker = PlagiarismChecker(
-            rag_document_store=doc_store,
-            embedding_manager=emb_mgr,
-        )
-    return plagiarism_checker
-
 
 def get_accuracy_evaluator():
     """Return ChatbotAccuracyEvaluator sharing the RAG embedding manager."""
@@ -117,6 +116,26 @@ def get_accuracy_evaluator():
         accuracy_evaluator = ChatbotAccuracyEvaluator(embedding_manager=emb_mgr)
     return accuracy_evaluator
 
+def get_deep_research_analyzer():
+    """Return a lightweight legal PDF analyzer for gap evidence."""
+    global deep_research_analyzer
+    if deep_research_analyzer is None:
+        deep_research_analyzer = DeepResearchAnalyzer(
+            email=getattr(config, 'USER_EMAIL', ''),
+            max_papers=5,
+            max_pdf_mb=20,
+            max_chars_per_paper=10000,
+            use_ocr=False,
+        )
+    return deep_research_analyzer
+
+def get_research_store():
+    """Return local SQLite storage for workspaces and saved papers."""
+    global research_store
+    if research_store is None:
+        research_store = ResearchStore(getattr(config, 'SQLITE_DB', 'data/research_scientist.db'))
+    return research_store
+
 # ============================================================================
 # ROUTES
 # ============================================================================
@@ -125,6 +144,90 @@ def get_accuracy_evaluator():
 def index():
     """Main page"""
     return render_template('index.html')
+
+def create_app(research_app=None):
+    """Return the configured Flask app for CLI/server entry points."""
+    return app
+
+@app.route('/api/workspaces', methods=['GET'])
+def list_workspaces():
+    try:
+        store = get_research_store()
+        workspaces = store.list_workspaces()
+        current_id = session.get('current_workspace_id') or workspaces[0]['id']
+        session['current_workspace_id'] = current_id
+        return jsonify({
+            'success': True,
+            'workspaces': workspaces,
+            'current_workspace_id': current_id
+        })
+    except Exception as e:
+        logger.error(f"Workspace list error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/workspaces', methods=['POST'])
+def create_workspace():
+    try:
+        data = request.json or {}
+        workspace = get_research_store().create_workspace(
+            data.get('name', ''),
+            data.get('description', '')
+        )
+        session['current_workspace_id'] = workspace['id']
+        return jsonify({'success': True, 'workspace': workspace})
+    except Exception as e:
+        logger.error(f"Workspace create error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/workspaces/current', methods=['POST'])
+def set_current_workspace():
+    try:
+        data = request.json or {}
+        workspace_id = int(data.get('workspace_id'))
+        workspace = get_research_store().get_workspace(workspace_id)
+        if not workspace:
+            return jsonify({'success': False, 'error': 'Workspace not found'}), 404
+        session['current_workspace_id'] = workspace_id
+        return jsonify({'success': True, 'workspace': workspace})
+    except Exception as e:
+        logger.error(f"Workspace switch error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/workspaces/<int:workspace_id>/papers', methods=['GET'])
+def list_workspace_papers(workspace_id):
+    try:
+        papers = get_research_store().list_saved_papers(workspace_id)
+        stats = get_research_store().dashboard_stats(workspace_id)
+        return jsonify({'success': True, 'papers': papers, 'stats': stats})
+    except Exception as e:
+        logger.error(f"Saved papers list error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/workspaces/<int:workspace_id>/papers', methods=['POST'])
+def save_workspace_paper(workspace_id):
+    try:
+        data = request.json or {}
+        saved = get_research_store().save_paper(
+            workspace_id,
+            data.get('paper', {}),
+            data.get('notes', ''),
+            data.get('tags', '')
+        )
+        return jsonify({'success': True, 'paper': saved})
+    except Exception as e:
+        logger.error(f"Save paper error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/workspaces/<int:workspace_id>/papers/<int:saved_id>', methods=['DELETE'])
+def delete_workspace_paper(workspace_id, saved_id):
+    try:
+        ok = get_research_store().delete_saved_paper(workspace_id, saved_id)
+        if not ok:
+            return jsonify({'success': False, 'error': 'Saved paper not found'}), 404
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Delete saved paper error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/search', methods=['POST'])
 def search_papers():
@@ -137,7 +240,7 @@ def search_papers():
         end_year = int(data['endYear']) if data.get('endYear') else None
         min_citations = int(data['minCitations']) if data.get('minCitations') else None
         journal_filter = data.get('journal', '')
-        sources = data.get('sources', ['arxiv', 'semantic_scholar', 'openalex', 'crossref', 'pubmed'])
+        sources = data.get('sources', ['scopus', 'ieee', 'semantic_scholar', 'openalex'])
         
         logger.info(f"Search request: {query}")
         
@@ -461,6 +564,7 @@ def find_research_gaps():
         data = request.json or {}
         papers = data.get('papers', session.get('last_search_results', []))
         query = data.get('query', '')
+        use_deep_research = bool(data.get('deepResearch'))
 
         if not papers:
             return jsonify({'success': False, 'error': 'No papers to analyze. Run a search first.'}), 400
@@ -472,13 +576,52 @@ def find_research_gaps():
                 'error': 'Ollama not available. Start Ollama to use the Research Gap Finder.'
             }), 503
 
-        # Build a summary of the papers
+        deep_evidence = []
+        if use_deep_research:
+            deep_evidence = get_deep_research_analyzer().analyze(papers)
+
+        deep_by_key = {
+            (item.get('doi') or item.get('title') or '').lower(): item
+            for item in deep_evidence
+        }
+
+        # Build enriched summaries. Gap detection is weak on titles alone, so
+        # include every available abstract, keyword, identifier, and source cue.
         paper_summaries = []
         for i, p in enumerate(papers[:15]):  # limit to 15 to keep prompt manageable
+            deep = deep_by_key.get((p.get('doi') or p.get('title') or '').lower(), {})
+            abstract = (p.get('abstract') or '').strip()
+            if not abstract and deep.get('abstract'):
+                abstract = deep.get('abstract', '')
+            keywords = p.get('keywords') or p.get('fields') or p.get('categories') or []
+            if isinstance(keywords, str):
+                keywords = [keywords]
+            subject_areas = p.get('subject_areas') or []
+            if isinstance(subject_areas, str):
+                subject_areas = [subject_areas]
+            affiliations = p.get('affiliations') or []
+            countries = sorted({
+                a.get('country', '')
+                for a in affiliations
+                if isinstance(a, dict) and a.get('country')
+            })
+            metrics = p.get('source_metrics') or {}
+            evidence_level = deep.get('evidence_level') or ('abstract/metadata' if abstract else 'title and bibliographic metadata only')
+            snippets = deep.get('evidence_snippets') or []
             paper_summaries.append(
                 f"{i+1}. \"{p.get('title', '')}\" ({p.get('year', '')}) — "
                 f"Citations: {p.get('citations', 0)} — Source: {p.get('source', '')}\n"
-                f"   Abstract: {(p.get('abstract') or '')[:200]}"
+                f"   DOI: {p.get('doi', '')}; EID/Paper ID: {p.get('eid') or p.get('paper_id', '')}; "
+                f"Document type: {p.get('document_type', '')}\n"
+                f"   Keywords/fields: {', '.join(keywords[:8])}\n"
+                f"   Subject areas: {', '.join(subject_areas[:6])}\n"
+                f"   Affiliation countries: {', '.join(countries[:6])}\n"
+                f"   Journal metrics: CiteScore={metrics.get('cite_score', '')}, "
+                f"SJR={metrics.get('sjr', '')}, SNIP={metrics.get('snip', '')}\n"
+                f"   Evidence level: {evidence_level}\n"
+                f"   Full text status: {deep.get('full_text_status', 'Not attempted')}\n"
+                f"   Abstract: {abstract[:900] if abstract else 'Not available'}\n"
+                f"   Deep evidence snippets: {' | '.join(snippets[:3]) if snippets else 'None'}"
             )
 
         prompt = f"""You are an expert research analyst specializing in identifying research gaps.
@@ -488,10 +631,17 @@ Research Topic: "{query}"
 Papers analyzed:
 {chr(10).join(paper_summaries)}
 
-Please provide a structured analysis with EXACTLY these 4 sections using markdown:
+Rules:
+- Do not infer specific methodology/results from title-only papers.
+- Prefer gaps supported by abstracts, keywords, Scopus metadata, citation patterns, or repeated missing information.
+- For every gap, cite the paper titles that support it.
+- Add a confidence label: High, Medium, or Low.
+- Prefer full_text evidence snippets when they are present.
+
+Please provide a structured analysis with EXACTLY these 5 sections using markdown:
 
 ## 🔍 Research Gaps
-List 3 specific gaps or unsolved problems identified across these papers.
+List 3 specific gaps or unsolved problems. Each gap must include Evidence and Confidence.
 
 ## 🚀 Future Research Directions
 List 2 promising directions researchers should explore next.
@@ -502,6 +652,9 @@ Identify 3 papers from the list that seem most impactful or novel (cite them by 
 ## 💡 Novel Hypotheses
 Propose 2 testable research hypotheses that could bridge the identified gaps.
 
+## Evidence Limitations
+Briefly state whether the analysis is based on full abstracts, Scopus metadata, or title-only records.
+
 Be specific, insightful, and actionable."""
 
         response = chatbot.client.generate(prompt, temperature=0.5, max_tokens=1200)
@@ -509,7 +662,9 @@ Be specific, insightful, and actionable."""
         return jsonify({
             'success': True,
             'analysis': response,
-            'papers_analyzed': len(paper_summaries)
+            'papers_analyzed': len(paper_summaries),
+            'deep_research': use_deep_research,
+            'deep_evidence': deep_evidence
         })
 
     except Exception as e:
@@ -561,9 +716,9 @@ def rag_chat():
         
         response = chatbot.chat(
             message,
-            top_k=5,
+            top_k=getattr(config, 'RAG_TOP_K', 3),
             use_reranking=True,
-            temperature=0.7
+            temperature=0.5
         )
         
         return jsonify({
@@ -748,39 +903,6 @@ def health_check():
         'status': status,
         'timestamp': datetime.now().isoformat()
     })
-
-@app.route('/api/plagiarism/check', methods=['POST'])
-def check_plagiarism():
-    """Check text for plagiarism against documents and KG papers"""
-    try:
-        data = request.json
-        text       = data.get('text', '').strip()
-        check_docs = data.get('check_docs', True)
-        check_kg   = data.get('check_kg', True)
-
-        if not text:
-            return jsonify({'success': False, 'error': 'No text provided'}), 400
-
-        if len(text) < 50:
-            return jsonify({'success': False, 'error': 'Text too short (minimum 50 characters)'}), 400
-
-        checker = get_plagiarism_checker()
-        kg      = get_kg_manager() if check_kg else None
-
-        report = checker.check(
-            text=text,
-            check_docs=check_docs,
-            check_kg=check_kg,
-            kg_manager=kg,
-        )
-
-        return jsonify({'success': True, 'report': report})
-
-    except Exception as e:
-        logger.error(f"Plagiarism check error: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
 
 @app.route('/api/accuracy/evaluate', methods=['POST'])
 def evaluate_accuracy():

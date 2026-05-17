@@ -6,10 +6,16 @@ Supports: ArXiv, Semantic Scholar, IEEE, PubMed, CORE, OpenAlex, CrossRef, Googl
 from typing import List, Dict, Optional, Set
 import logging
 from difflib import SequenceMatcher
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import hashlib
+import json
+import os
+import time
 
 from .arxiv_scraper import ArxivScraper
 from .semantic_scholar_scraper import SemanticScholarScraper
 from .ieee_scraper import IEEEScraper
+from .scopus_scraper import ScopusScraper
 from .additional_sources import (
     PubMedScraper, COREScrap, OpenAlexScraper, 
     CrossRefScraper, GoogleScholarScraper
@@ -28,10 +34,14 @@ class EnhancedPaperScraper:
     def __init__(self, 
                  ieee_api_key: Optional[str] = None,
                  semantic_scholar_api_key: Optional[str] = None,
+                 elsevier_api_key: Optional[str] = None,
                  pubmed_api_key: Optional[str] = None,
                  core_api_key: Optional[str] = None,
                  serpapi_key: Optional[str] = None,
-                 email: Optional[str] = None):
+                 email: Optional[str] = None,
+                 cache_dir: str = 'data/cache/search',
+                 cache_ttl: int = 3600,
+                 max_workers: int = 5):
         """
         Initialize all scrapers
         
@@ -46,6 +56,18 @@ class EnhancedPaperScraper:
         
         # Initialize all scrapers
         self.scrapers = {}
+        self.cache_dir = cache_dir
+        self.cache_ttl = cache_ttl
+        self.max_workers = max_workers
+        os.makedirs(self.cache_dir, exist_ok=True)
+
+        # Verified academic source
+        if elsevier_api_key and elsevier_api_key not in ['', 'your_key', 'your_elsevier_api_key_here']:
+            try:
+                self.scrapers['scopus'] = ScopusScraper(elsevier_api_key)
+                logger.info("✓ Scopus initialized")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Scopus: {e}")
         
         # Free sources (no API key required)
         self.scrapers['arxiv'] = ArxivScraper()
@@ -147,6 +169,7 @@ class EnhancedPaperScraper:
 
         # ── 3. Source / publication prestige (up to 10 pts) ───────────────
         source_weights = {
+            'scopus': 10,
             'ieee': 10, 'ieee xplore': 10,
             'nature': 10, 'science': 10,
             'acm': 8,
@@ -205,6 +228,21 @@ class EnhancedPaperScraper:
         
         if sources is None:
             sources = list(self.scrapers.keys())
+        sources = [source for source in sources if source in self.scrapers]
+        cache_key = self._cache_key(
+            query=query,
+            max_results_per_source=max_results_per_source,
+            start_year=start_year,
+            end_year=end_year,
+            min_citations=min_citations,
+            journal_filter=journal_filter,
+            sources=sources,
+            include_abstract=include_abstract,
+        )
+        cached = self._get_cached_search(cache_key)
+        if cached is not None:
+            logger.info(f"Returning cached search results for: {query}")
+            return cached
         
         logger.info(f"\n{'='*80}")
         logger.info(f"SEARCHING: {query}")
@@ -214,12 +252,34 @@ class EnhancedPaperScraper:
         all_papers = []
         source_counts = {}
         
-        # Search each source
-        for source_name in sources:
-            if source_name not in self.scrapers:
-                logger.warning(f"Source '{source_name}' not available")
-                continue
-            
+        # Search each source in parallel. Most time here is network I/O.
+        workers = max(1, min(self.max_workers, len(sources)))
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(
+                    self._search_single_source,
+                    source_name,
+                    query,
+                    max_results_per_source,
+                    start_year,
+                    end_year,
+                    min_citations,
+                ): source_name
+                for source_name in sources
+            }
+
+            for future in as_completed(futures):
+                source_name = futures[future]
+                try:
+                    papers = future.result()
+                    all_papers.extend(papers)
+                    source_counts[source_name] = len(papers)
+                    logger.info(f"  Found {len(papers)} papers from {source_name}")
+                except Exception as e:
+                    logger.error(f"  Error searching {source_name}: {e}")
+                    source_counts[source_name] = 0
+
+        if False:
             try:
                 logger.info(f"🔍 Searching {source_name}...")
                 scraper = self.scrapers[source_name]
@@ -259,6 +319,10 @@ class EnhancedPaperScraper:
         # Remove duplicates with advanced algorithm
         unique_papers = self.advanced_deduplication(all_papers)
         logger.info(f"  {'After deduplication':20s}: {len(unique_papers):4d} papers")
+
+        # If Scopus is available, verify DOI-bearing non-Scopus results for free.
+        if 'scopus' in self.scrapers:
+            self._verify_with_scopus(unique_papers, limit=10)
         
         # Compute relevance score and sort by it (descending)
         for paper in unique_papers:
@@ -271,8 +335,55 @@ class EnhancedPaperScraper:
                 paper.pop('abstract', None)
         
         logger.info(f"{'='*80}\n")
-        
+        self._set_cached_search(cache_key, unique_papers)
         return unique_papers
+
+    def _search_single_source(
+        self,
+        source_name: str,
+        query: str,
+        max_results: int,
+        start_year: Optional[int],
+        end_year: Optional[int],
+        min_citations: Optional[int],
+    ) -> List[Dict]:
+        logger.info(f"Searching {source_name}...")
+        scraper = self.scrapers[source_name]
+        return scraper.search(
+            query=query,
+            max_results=max_results,
+            start_year=start_year,
+            end_year=end_year,
+            min_citations=min_citations
+        )
+
+    def _cache_key(self, **kwargs) -> str:
+        payload = json.dumps(kwargs, sort_keys=True, default=str)
+        return hashlib.sha256(payload.encode('utf-8')).hexdigest()
+
+    def _cache_path(self, cache_key: str) -> str:
+        return os.path.join(self.cache_dir, f'{cache_key}.json')
+
+    def _get_cached_search(self, cache_key: str):
+        path = self._cache_path(cache_key)
+        if not os.path.exists(path):
+            return None
+        if time.time() - os.path.getmtime(path) > self.cache_ttl:
+            return None
+        try:
+            with open(path, 'r', encoding='utf-8') as handle:
+                return json.load(handle)
+        except Exception as exc:
+            logger.debug(f"Could not read search cache {path}: {exc}")
+            return None
+
+    def _set_cached_search(self, cache_key: str, papers: List[Dict]) -> None:
+        path = self._cache_path(cache_key)
+        try:
+            with open(path, 'w', encoding='utf-8') as handle:
+                json.dump(papers, handle, ensure_ascii=False)
+        except Exception as exc:
+            logger.debug(f"Could not write search cache {path}: {exc}")
     
     def advanced_deduplication(self, papers: List[Dict]) -> List[Dict]:
         """
@@ -293,6 +404,8 @@ class EnhancedPaperScraper:
         seen_titles = set()
         seen_dois = set()
         seen_arxiv_ids = set()
+        doi_map = {}
+        arxiv_map = {}
         title_map = {}  # For fuzzy matching
         
         for paper in papers:
@@ -302,17 +415,25 @@ class EnhancedPaperScraper:
             doi = paper.get('doi', '').strip().lower()
             if doi and doi in seen_dois:
                 is_duplicate = True
+                existing_paper = doi_map.get(doi)
+                if existing_paper:
+                    self._merge_paper_data(existing_paper, paper)
                 logger.debug(f"Duplicate (DOI): {paper['title'][:50]}")
             elif doi:
                 seen_dois.add(doi)
+                doi_map[doi] = paper
             
             # Strategy 2: ArXiv ID matching
             arxiv_id = paper.get('arxiv_id', '').strip()
             if not is_duplicate and arxiv_id and arxiv_id in seen_arxiv_ids:
                 is_duplicate = True
+                existing_paper = arxiv_map.get(arxiv_id)
+                if existing_paper:
+                    self._merge_paper_data(existing_paper, paper)
                 logger.debug(f"Duplicate (ArXiv ID): {paper['title'][:50]}")
             elif arxiv_id:
                 seen_arxiv_ids.add(arxiv_id)
+                arxiv_map[arxiv_id] = paper
             
             # Strategy 3: Exact title matching
             title = paper.get('title', '').strip().lower()
@@ -320,6 +441,9 @@ class EnhancedPaperScraper:
             
             if not is_duplicate and title_normalized in seen_titles:
                 is_duplicate = True
+                existing_paper = title_map.get(title_normalized)
+                if existing_paper:
+                    self._merge_paper_data(existing_paper, paper)
                 logger.debug(f"Duplicate (Exact title): {paper['title'][:50]}")
             
             # Strategy 4: Fuzzy title matching
@@ -332,10 +456,13 @@ class EnhancedPaperScraper:
                         
                         # Keep paper with more information
                         if self._paper_quality_score(paper) > self._paper_quality_score(existing_paper):
+                            self._merge_paper_data(paper, existing_paper)
                             # Replace with better version
                             unique_papers.remove(existing_paper)
                             unique_papers.append(paper)
                             title_map[title_normalized] = paper
+                        else:
+                            self._merge_paper_data(existing_paper, paper)
                         
                         break
             
@@ -350,6 +477,80 @@ class EnhancedPaperScraper:
             logger.info(f"  Removed {removed} duplicates")
         
         return unique_papers
+
+    def _verify_with_scopus(self, papers: List[Dict], limit: int = 10) -> None:
+        """Mark DOI-bearing papers as Scopus verified when Scopus finds them."""
+        scopus = self.scrapers.get('scopus')
+        checked = 0
+
+        for paper in papers:
+            if checked >= limit:
+                break
+            if paper.get('scopus_verified') or not paper.get('doi'):
+                continue
+
+            checked += 1
+            try:
+                scopus_match = scopus.search_by_doi(paper.get('doi', ''))
+                if scopus_match:
+                    self._merge_paper_data(paper, scopus_match)
+                    paper['scopus_verified'] = True
+            except Exception as exc:
+                logger.debug(f"Scopus verification skipped for {paper.get('doi')}: {exc}")
+
+    def _merge_paper_data(self, target: Dict, incoming: Dict) -> None:
+        """Fill missing metadata on target from a duplicate incoming record."""
+        scalar_fields = [
+            'abstract', 'doi', 'pdf_url', 'url', 'journal', 'published_date',
+            'paper_id', 'eid', 'scopus_id', 'document_type', 'document_type_code',
+            'issn', 'isbn'
+        ]
+        for field in scalar_fields:
+            if not target.get(field) and incoming.get(field):
+                target[field] = incoming[field]
+
+        target['citations'] = max(target.get('citations') or 0, incoming.get('citations') or 0)
+        target['scopus_verified'] = bool(target.get('scopus_verified') or incoming.get('scopus_verified'))
+        target['open_access'] = bool(target.get('open_access') or incoming.get('open_access'))
+
+        list_fields = [
+            'authors', 'fields', 'keywords', 'categories', 'subject_areas',
+            'affiliations', 'funding_sponsors', 'publication_types'
+        ]
+        for field in list_fields:
+            merged = self._merge_list_values(target.get(field), incoming.get(field))
+            if merged:
+                target[field] = merged
+
+        if incoming.get('source_metrics') and not target.get('source_metrics'):
+            target['source_metrics'] = incoming['source_metrics']
+
+        sources = self._merge_list_values(target.get('merged_sources'), [target.get('source'), incoming.get('source')])
+        if sources:
+            target['merged_sources'] = sources
+
+    def _merge_list_values(self, current, incoming):
+        """Merge lists while preserving order and supporting dict items."""
+        if current is None:
+            current = []
+        if incoming is None:
+            incoming = []
+        if not isinstance(current, list):
+            current = [current]
+        if not isinstance(incoming, list):
+            incoming = [incoming]
+
+        merged = []
+        seen = set()
+        for item in current + incoming:
+            if not item:
+                continue
+            marker = tuple(sorted(item.items())) if isinstance(item, dict) else str(item).lower()
+            if marker in seen:
+                continue
+            seen.add(marker)
+            merged.append(item)
+        return merged
     
     def _normalize_title(self, title: str) -> str:
         """Normalize title for comparison"""
@@ -396,6 +597,7 @@ class EnhancedPaperScraper:
         
         # Prefer certain sources
         source_priority = {
+            'Scopus': 7,
             'Semantic Scholar': 5,
             'IEEE Xplore': 4,
             'OpenAlex': 3,

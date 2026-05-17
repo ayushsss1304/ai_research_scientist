@@ -21,6 +21,9 @@ SEMANTIC_SCHOLAR_API_KEY = os.getenv('SEMANTIC_SCHOLAR_API_KEY', '')
 # IEEE Xplore (FREE - 200 calls/day)
 IEEE_API_KEY = os.getenv('IEEE_API_KEY', '')
 
+# Elsevier Scopus API
+ELSEVIER_API_KEY = os.getenv('ELSEVIER_API_KEY', os.getenv('SCOPUS_API_KEY', ''))
+
 # PubMed (FREE + Optional key for higher limits)
 PUBMED_API_KEY = os.getenv('PUBMED_API_KEY', '')
 
@@ -50,7 +53,7 @@ NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD', '')
 # PDF PROCESSING
 # ============================================================================
 
-USE_OCR = True
+USE_OCR = False  # Keep default processing fast; enable manually for scanned PDFs.
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
 
@@ -88,16 +91,17 @@ ENABLE_ADVANCED_DEDUPLICATION = True
 
 # Default sources (customize as needed)
 DEFAULT_SOURCES = [
-    'arxiv',
+    'scopus',
+    'ieee',
     'semantic_scholar',
     'openalex',
-    'crossref',
-    'pubmed'
+    'arxiv'
 ]
 
 # Optional sources (require API keys)
 OPTIONAL_SOURCES = [
-    'ieee',         # Requires IEEE_API_KEY
+    'crossref',
+    'pubmed',
     'core',         # Requires CORE_API_KEY
     'google_scholar'  # Requires SERPAPI_KEY
 ]
@@ -114,7 +118,7 @@ EMBEDDING_MODEL = 'all-MiniLM-L6-v2'
 # EMBEDDING_MODEL = 'paraphrase-multilingual-MiniLM-L12-v2'  # Multilingual
 
 # RAG settings
-RAG_TOP_K = 5  # Number of chunks to retrieve
+RAG_TOP_K = 3  # Number of chunks to retrieve
 RAG_USE_RERANKING = True  # Use MMR reranking for diversity
 RAG_MIN_SIMILARITY = 0.3  # Minimum similarity threshold
 
@@ -161,6 +165,7 @@ ENABLE_RECOMMENDATIONS = False
 # Rate limit settings for different sources
 RATE_LIMITS = {
     'arxiv': 3,  # seconds between requests
+    'scopus': 0.25,
     'semantic_scholar': 0.5,
     'pubmed': 0.4,
     'ieee': 1,

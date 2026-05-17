@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820">
+  <defs>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { font: 700 34px Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 400 18px Arial, sans-serif; fill: #475569; }
+      .phase-title { font: 700 24px Arial, sans-serif; fill: #0f172a; }
+      .phase-sub { font: 400 15px Arial, sans-serif; fill: #475569; }
+      .small { font: 400 14px Arial, sans-serif; fill: #334155; }
+      .label { font: 700 14px Arial, sans-serif; fill: #0f172a; }
+      .box { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; rx: 12; }
+      .mainbox { fill: #ffffff; stroke: #2563eb; stroke-width: 3; rx: 14; }
+      .accent { fill: #eff6ff; stroke: #93c5fd; stroke-width: 2; rx: 10; }
+      .green { fill: #ecfdf5; stroke: #86efac; stroke-width: 2; rx: 10; }
+      .purple { fill: #f5f3ff; stroke: #c4b5fd; stroke-width: 2; rx: 10; }
+      .orange { fill: #fff7ed; stroke: #fdba74; stroke-width: 2; rx: 10; }
+      .line { stroke: #64748b; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .thin { stroke: #94a3b8; stroke-width: 2; fill: none; marker-end: url(#arrowSmall); }
+      .pill { fill: #e0f2fe; stroke: #7dd3fc; stroke-width: 1.5; rx: 18; }
+      .pilltext { font: 700 13px Arial, sans-serif; fill: #075985; }
+    </style>
+    <marker id="arrow" markerWidth="13" markerHeight="13" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L11,6 L2,10 Z" fill="#64748b"/>
+    </marker>
+    <marker id="arrowSmall" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M1,1 L9,5 L1,9 Z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1400" height="820"/>
+
+  <text class="title" x="70" y="70">SOCME Diagram for VeriSci: AI Research Scientist</text>
+  <text class="subtitle" x="70" y="102">Search, Organize, Chat, Map, and Export workflow for Scopus-backed research assistance</text>
+
+  <rect class="pill" x="70" y="135" width="175" height="36"/>
+  <text class="pilltext" x="92" y="158">S: Search Papers</text>
+  <rect class="pill" x="265" y="135" width="190" height="36"/>
+  <text class="pilltext" x="287" y="158">O: Organize Workspace</text>
+  <rect class="pill" x="475" y="135" width="178" height="36"/>
+  <text class="pilltext" x="497" y="158">C: Chat &amp; Analyze</text>
+  <rect class="pill" x="673" y="135" width="210" height="36"/>
+  <text class="pilltext" x="695" y="158">M: Map Knowledge Graph</text>
+  <rect class="pill" x="903" y="135" width="165" height="36"/>
+  <text class="pilltext" x="925" y="158">E: Export Output</text>
+
+  <!-- Main pipeline boxes -->
+  <rect class="mainbox" x="70" y="230" width="210" height="150"/>
+  <text class="phase-title" x="95" y="270">1. Search</text>
+  <text class="phase-sub" x="95" y="300">Query academic sources</text>
+  <text class="small" x="95" y="330">Scopus, IEEE, OpenAlex,</text>
+  <text class="small" x="95" y="352">Semantic Scholar, arXiv</text>
+
+  <rect class="mainbox" x="330" y="230" width="220" height="150"/>
+  <text class="phase-title" x="355" y="270">2. Organize</text>
+  <text class="phase-sub" x="355" y="300">Save selected papers</text>
+  <text class="small" x="355" y="330">Workspace, tags, notes,</text>
+  <text class="small" x="355" y="352">paper library</text>
+
+  <rect class="mainbox" x="600" y="230" width="220" height="150"/>
+  <text class="phase-title" x="625" y="270">3. Chat</text>
+  <text class="phase-sub" x="625" y="300">Ask questions on papers</text>
+  <text class="small" x="625" y="330">RAG over uploaded PDFs,</text>
+  <text class="small" x="625" y="352">summaries, comparison</text>
+
+  <rect class="mainbox" x="870" y="230" width="220" height="150"/>
+  <text class="phase-title" x="895" y="270">4. Map</text>
+  <text class="phase-sub" x="895" y="300">Build research graph</text>
+  <text class="small" x="895" y="330">Papers, authors, fields,</text>
+  <text class="small" x="895" y="352">journals, keywords</text>
+
+  <rect class="mainbox" x="1140" y="230" width="210" height="150"/>
+  <text class="phase-title" x="1165" y="270">5. Export</text>
+  <text class="phase-sub" x="1165" y="300">Generate report outputs</text>
+  <text class="small" x="1165" y="330">BibTeX, CSV, JSON,</text>
+  <text class="small" x="1165" y="352">research gap notes</text>
+
+  <path class="line" d="M280 305 H330"/>
+  <path class="line" d="M550 305 H600"/>
+  <path class="line" d="M820 305 H870"/>
+  <path class="line" d="M1090 305 H1140"/>
+
+  <!-- Supporting services -->
+  <rect class="accent" x="80" y="470" width="250" height="120"/>
+  <text class="label" x="105" y="505">Verified Metadata Layer</text>
+  <text class="small" x="105" y="532">Scopus verification, DOI,</text>
+  <text class="small" x="105" y="554">citations, journal metrics,</text>
+  <text class="small" x="105" y="576">open-access status</text>
+
+  <rect class="green" x="390" y="470" width="260" height="120"/>
+  <text class="label" x="415" y="505">Deep Research Layer</text>
+  <text class="small" x="415" y="532">Legal OA PDF resolver,</text>
+  <text class="small" x="415" y="554">temporary download, section</text>
+  <text class="small" x="415" y="576">extraction, deletion</text>
+
+  <rect class="purple" x="710" y="470" width="260" height="120"/>
+  <text class="label" x="735" y="505">AI Analysis Layer</text>
+  <text class="small" x="735" y="532">Ollama RAG, summaries,</text>
+  <text class="small" x="735" y="554">research gap finder,</text>
+  <text class="small" x="735" y="576">evidence confidence</text>
+
+  <rect class="orange" x="1030" y="470" width="260" height="120"/>
+  <text class="label" x="1055" y="505">Persistence Layer</text>
+  <text class="small" x="1055" y="532">SQLite workspaces, saved</text>
+  <text class="small" x="1055" y="554">papers, Neo4j graph,</text>
+  <text class="small" x="1055" y="576">RAG document store</text>
+
+  <path class="thin" d="M180 380 V470"/>
+  <path class="thin" d="M440 380 V470"/>
+  <path class="thin" d="M710 380 V470"/>
+  <path class="thin" d="M980 380 V470"/>
+  <path class="thin" d="M1245 380 V470"/>
+
+  <!-- Output section -->
+  <rect class="box" x="160" y="660" width="1080" height="85"/>
+  <text class="label" x="190" y="694">Final User Outputs</text>
+  <text class="small" x="190" y="724">Curated paper library • Scopus-verified metadata • Evidence-backed research gaps • Knowledge graph insights • Citation exports • Report-ready summaries</text>
+
+  <path class="line" d="M205 590 V660"/>
+  <path class="line" d="M520 590 V660"/>
+  <path class="line" d="M840 590 V660"/>
+  <path class="line" d="M1160 590 V660"/>
+
+  <text class="small" x="70" y="790">Note: Deep Research downloads only legal open-access PDFs temporarily and deletes files after evidence extraction.</text>
+</svg>

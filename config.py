@@ -5,6 +5,7 @@ load_dotenv()
 
 # API Keys
 IEEE_API_KEY = os.getenv('IEEE_API_KEY', '')
+ELSEVIER_API_KEY = os.getenv('ELSEVIER_API_KEY', os.getenv('SCOPUS_API_KEY', ''))
 SEMANTIC_SCHOLAR_API_KEY = os.getenv('SEMANTIC_SCHOLAR_API_KEY', '')  # Optional, increases rate limit
 ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
 
@@ -14,7 +15,7 @@ NEO4J_USER = os.getenv('NEO4J_USER', 'neo4j')
 NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD', '')
 
 # PDF Processing
-USE_OCR = True
+USE_OCR = False  # Keep default processing fast; enable manually for scanned PDFs.
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
 
