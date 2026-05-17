@@ -19,6 +19,8 @@ from scrapers.enhanced_paper_scraper import EnhancedPaperScraper
 from knowledge_graph.kg_manager import KnowledgeGraphManager
 from rag_pipeline.ollama_chatbot import OllamaRAGChatbot
 from pdf_processing.pdf_processor import PDFProcessor
+from plagiarism.plagiarism_checker import PlagiarismChecker
+from accuracy.evaluator import ChatbotAccuracyEvaluator
 
 # Try to import config
 try:
@@ -48,6 +50,8 @@ scraper = None
 kg_manager = None
 rag_chatbot = None
 pdf_processor = None
+plagiarism_checker = None
+accuracy_evaluator = None
 
 def get_scraper():
     global scraper
@@ -89,6 +93,29 @@ def get_pdf_processor():
     if pdf_processor is None:
         pdf_processor = PDFProcessor()
     return pdf_processor
+
+def get_plagiarism_checker():
+    """Return PlagiarismChecker wired to the active RAG chatbot's stores."""
+    global plagiarism_checker
+    chatbot = get_rag_chatbot()  # may be None if Ollama not running
+    if plagiarism_checker is None or chatbot is None:
+        doc_store = chatbot.document_store if chatbot else None
+        emb_mgr   = chatbot.embedding_manager if chatbot else None
+        plagiarism_checker = PlagiarismChecker(
+            rag_document_store=doc_store,
+            embedding_manager=emb_mgr,
+        )
+    return plagiarism_checker
+
+
+def get_accuracy_evaluator():
+    """Return ChatbotAccuracyEvaluator sharing the RAG embedding manager."""
+    global accuracy_evaluator
+    chatbot = get_rag_chatbot()
+    emb_mgr = chatbot.embedding_manager if chatbot else None
+    if accuracy_evaluator is None:
+        accuracy_evaluator = ChatbotAccuracyEvaluator(embedding_manager=emb_mgr)
+    return accuracy_evaluator
 
 # ============================================================================
 # ROUTES
@@ -721,6 +748,103 @@ def health_check():
         'status': status,
         'timestamp': datetime.now().isoformat()
     })
+
+@app.route('/api/plagiarism/check', methods=['POST'])
+def check_plagiarism():
+    """Check text for plagiarism against documents and KG papers"""
+    try:
+        data = request.json
+        text       = data.get('text', '').strip()
+        check_docs = data.get('check_docs', True)
+        check_kg   = data.get('check_kg', True)
+
+        if not text:
+            return jsonify({'success': False, 'error': 'No text provided'}), 400
+
+        if len(text) < 50:
+            return jsonify({'success': False, 'error': 'Text too short (minimum 50 characters)'}), 400
+
+        checker = get_plagiarism_checker()
+        kg      = get_kg_manager() if check_kg else None
+
+        report = checker.check(
+            text=text,
+            check_docs=check_docs,
+            check_kg=check_kg,
+            kg_manager=kg,
+        )
+
+        return jsonify({'success': True, 'report': report})
+
+    except Exception as e:
+        logger.error(f"Plagiarism check error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+
+@app.route('/api/accuracy/evaluate', methods=['POST'])
+def evaluate_accuracy():
+    """
+    Batch evaluate chatbot accuracy against reference answers.
+
+    Request body:
+        {
+          "test_cases": [
+            {"question": str, "expected": str, "actual": str (optional)},
+            ...
+          ],
+          "use_chatbot": bool   // if true and actual is missing, call chatbot
+        }
+    """
+    try:
+        data       = request.json or {}
+        test_cases = data.get('test_cases', [])
+        use_chatbot = data.get('use_chatbot', True)
+
+        if not test_cases:
+            return jsonify({'success': False, 'error': 'No test cases provided'}), 400
+
+        evaluator = get_accuracy_evaluator()
+        chatbot   = get_rag_chatbot() if use_chatbot else None
+
+        report = evaluator.evaluate(test_cases=test_cases, chatbot=chatbot)
+
+        return jsonify({'success': True, 'report': report})
+
+    except Exception as e:
+        logger.error(f"Accuracy evaluation error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/accuracy/quick', methods=['POST'])
+def quick_accuracy_check():
+    """
+    Quick single-question accuracy check (no chatbot call needed).
+    Compares a user-supplied actual answer vs expected answer.
+
+    Request body: {"question": str, "expected": str, "actual": str}
+    """
+    try:
+        data     = request.json or {}
+        question = data.get('question', '').strip()
+        expected = data.get('expected', '').strip()
+        actual   = data.get('actual',   '').strip()
+
+        if not expected or not actual:
+            return jsonify({'success': False, 'error': 'Both expected and actual answers are required'}), 400
+
+        evaluator = get_accuracy_evaluator()
+        report    = evaluator.evaluate(
+            test_cases=[{'question': question, 'expected': expected, 'actual': actual}],
+            chatbot=None
+        )
+
+        result = report['results'][0] if report['results'] else {}
+        return jsonify({'success': True, 'result': result, 'summary': report['summary']})
+
+    except Exception as e:
+        logger.error(f"Quick accuracy check error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 # ============================================================================
