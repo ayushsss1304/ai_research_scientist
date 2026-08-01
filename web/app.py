@@ -17,11 +17,25 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 # Import all components
 from scrapers.enhanced_paper_scraper import EnhancedPaperScraper
 from knowledge_graph.kg_manager import KnowledgeGraphManager
-from rag_pipeline.ollama_chatbot import OllamaRAGChatbot
 from pdf_processing.pdf_processor import PDFProcessor
-from accuracy.evaluator import ChatbotAccuracyEvaluator
 from research_gap.deep_research import DeepResearchAnalyzer
 from storage.research_store import ResearchStore
+
+# The local RAG stack pulls in PyTorch and a locally running Ollama server.
+# Keep it optional so the cloud app can start without those local-only services.
+_rag_default = 'false' if os.getenv('VERCEL') else 'true'
+if os.getenv('ENABLE_RAG_CHATBOT', _rag_default).lower() == 'true':
+    try:
+        from rag_pipeline.ollama_chatbot import OllamaRAGChatbot
+    except ImportError:
+        OllamaRAGChatbot = None
+else:
+    OllamaRAGChatbot = None
+
+try:
+    from accuracy.evaluator import ChatbotAccuracyEvaluator
+except ImportError:
+    ChatbotAccuracyEvaluator = None
 
 # Try to import config
 try:
@@ -45,9 +59,9 @@ logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+app.secret_key = getattr(config, 'FLASK_SECRET_KEY', None) or os.urandom(24)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB
-app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['UPLOAD_FOLDER'] = getattr(config, 'UPLOAD_DIR', 'uploads')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Initialize components (lazy loading)
@@ -78,12 +92,20 @@ def get_scraper():
 
 def get_kg_manager():
     global kg_manager
+    if not getattr(config, 'ENABLE_KNOWLEDGE_GRAPH', True):
+        return None
+    uri = getattr(config, 'NEO4J_URI', '')
+    password = getattr(config, 'NEO4J_PASSWORD', '')
+    if not uri or not password:
+        return None
+    if getattr(config, 'IS_VERCEL', False) and ('localhost' in uri or '127.0.0.1' in uri):
+        return None
     if kg_manager is None:
         try:
             kg_manager = KnowledgeGraphManager(
-                uri=config.NEO4J_URI,
+                uri=uri,
                 user=config.NEO4J_USER,
-                password=config.NEO4J_PASSWORD
+                password=password
             )
         except Exception as e:
             logger.warning(f"KG not available: {e}")
@@ -91,11 +113,14 @@ def get_kg_manager():
 
 def get_rag_chatbot():
     global rag_chatbot
+    if not getattr(config, 'ENABLE_RAG_CHATBOT', True) or OllamaRAGChatbot is None:
+        return None
     if rag_chatbot is None:
         try:
             rag_chatbot = OllamaRAGChatbot(
-                model="llama3",
-                storage_dir='rag_storage_web'
+                model=os.getenv('OLLAMA_MODEL', 'llama3'),
+                ollama_url=os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434'),
+                storage_dir=os.path.join(getattr(config, 'RUNTIME_DIR', '.'), 'rag_storage_web')
             )
         except Exception as e:
             logger.warning(f"RAG not available: {e}")
@@ -110,6 +135,8 @@ def get_pdf_processor():
 def get_accuracy_evaluator():
     """Return ChatbotAccuracyEvaluator sharing the RAG embedding manager."""
     global accuracy_evaluator
+    if ChatbotAccuracyEvaluator is None:
+        return None
     chatbot = get_rag_chatbot()
     emb_mgr = chatbot.embedding_manager if chatbot else None
     if accuracy_evaluator is None:
@@ -927,6 +954,11 @@ def evaluate_accuracy():
             return jsonify({'success': False, 'error': 'No test cases provided'}), 400
 
         evaluator = get_accuracy_evaluator()
+        if evaluator is None:
+            return jsonify({
+                'success': False,
+                'error': 'Accuracy evaluation is disabled in this deployment.'
+            }), 503
         chatbot   = get_rag_chatbot() if use_chatbot else None
 
         report = evaluator.evaluate(test_cases=test_cases, chatbot=chatbot)

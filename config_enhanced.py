@@ -4,6 +4,7 @@ Supports all 8 research paper sources
 """
 
 import os
+import tempfile
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -65,11 +66,16 @@ PDF_DPI = 300
 # DIRECTORIES
 # ============================================================================
 
-DATA_DIR = 'data'
+IS_VERCEL = bool(os.getenv('VERCEL'))
+RUNTIME_DIR = os.getenv(
+    'RUNTIME_DIR',
+    os.path.join(tempfile.gettempdir(), 'research_scientist') if IS_VERCEL else '.'
+)
+DATA_DIR = os.path.join(RUNTIME_DIR, 'data')
 PDF_DIR = os.path.join(DATA_DIR, 'pdfs')
 CACHE_DIR = os.path.join(DATA_DIR, 'cache')
-UPLOAD_DIR = 'uploads'
-RAG_STORAGE_DIR = 'rag_storage'  # Standalone RAG storage
+UPLOAD_DIR = os.path.join(RUNTIME_DIR, 'uploads')
+RAG_STORAGE_DIR = os.path.join(RUNTIME_DIR, 'rag_storage')
 
 # Create directories
 for directory in [DATA_DIR, PDF_DIR, CACHE_DIR, UPLOAD_DIR, RAG_STORAGE_DIR]:
@@ -129,7 +135,7 @@ RAG_MIN_SIMILARITY = 0.3  # Minimum similarity threshold
 FLASK_HOST = '0.0.0.0'
 FLASK_PORT = 5000
 FLASK_DEBUG = True
-FLASK_SECRET_KEY = os.urandom(24)
+FLASK_SECRET_KEY = os.getenv('FLASK_SECRET_KEY') or os.urandom(24)
 
 # Max file upload size (50 MB)
 MAX_CONTENT_LENGTH = 50 * 1024 * 1024
@@ -147,8 +153,11 @@ LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 # ============================================================================
 
 # Enable/disable features
-ENABLE_KNOWLEDGE_GRAPH = True
-ENABLE_RAG_CHATBOT = True
+ENABLE_KNOWLEDGE_GRAPH = os.getenv('ENABLE_KNOWLEDGE_GRAPH', 'true').lower() == 'true'
+ENABLE_RAG_CHATBOT = os.getenv(
+    'ENABLE_RAG_CHATBOT',
+    'false' if IS_VERCEL else 'true'
+).lower() == 'true'
 ENABLE_WEB_INTERFACE = True
 ENABLE_PDF_PROCESSING = True
 ENABLE_OCR = True
@@ -188,7 +197,7 @@ CACHE_MAX_SIZE = 1000  # Maximum cached items
 # ============================================================================
 
 # SQLite for metadata
-SQLITE_DB = 'data/research_scientist.db'
+SQLITE_DB = os.path.join(DATA_DIR, 'research_scientist.db')
 
 # ============================================================================
 # EXPORT SETTINGS
