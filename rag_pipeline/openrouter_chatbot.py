@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class OpenRouterClient:
     """Small OpenAI-compatible client for OpenRouter."""
 
-    def __init__(self, api_key: str, model: str = "openrouter/free",
+    def __init__(self, api_key: str, model: str = "google/gemma-4-31b-it:free",
                  site_url: str = "", site_name: str = "VeriSci"):
         if not api_key:
             raise ValueError("OPENROUTER_API_KEY is not configured")
@@ -78,7 +78,7 @@ class OpenRouterClient:
 class OpenRouterRAGChatbot:
     """Cloud-friendly RAG with lexical retrieval and no ML runtime dependency."""
 
-    def __init__(self, api_key: str, model: str = "openrouter/free",
+    def __init__(self, api_key: str, model: str = "google/gemma-4-31b-it:free",
                  storage_dir: str = "rag_storage", site_url: str = ""):
         self.client = OpenRouterClient(api_key, model, site_url, "VeriSci")
         self.storage_dir = storage_dir

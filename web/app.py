@@ -122,7 +122,7 @@ def get_rag_chatbot():
             if openrouter_key:
                 rag_chatbot = OpenRouterRAGChatbot(
                     api_key=openrouter_key,
-                    model=os.getenv('OPENROUTER_MODEL', 'openrouter/free'),
+                    model=os.getenv('OPENROUTER_MODEL', 'google/gemma-4-31b-it:free'),
                     storage_dir=storage_dir,
                     site_url=os.getenv('APP_URL', 'https://ai-research-scientist-rho.vercel.app')
                 )
