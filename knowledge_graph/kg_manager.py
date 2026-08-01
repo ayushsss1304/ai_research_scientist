@@ -6,13 +6,31 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+class _DatabaseBoundDriver:
+    """Delegate to a Neo4j driver while applying the Aura database by default."""
+
+    def __init__(self, driver, database: Optional[str] = None):
+        self._driver = driver
+        self._database = database or None
+
+    def session(self, *args, **kwargs):
+        if self._database and 'database' not in kwargs:
+            kwargs['database'] = self._database
+        return self._driver.session(*args, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(self._driver, name)
+
+
 class KnowledgeGraphManager:
     """Manages Neo4j knowledge graph for research papers"""
     
-    def __init__(self, uri: str, user: str, password: str):
+    def __init__(self, uri: str, user: str, password: str,
+                 database: Optional[str] = None):
         """Initialize Neo4j connection"""
         try:
-            self.driver = GraphDatabase.driver(uri, auth=(user, password))
+            raw_driver = GraphDatabase.driver(uri, auth=(user, password))
+            self.driver = _DatabaseBoundDriver(raw_driver, database)
             self._verify_connectivity()
             self._create_indexes()
             logger.info("Successfully connected to Neo4j")
@@ -505,4 +523,4 @@ class KnowledgeGraphManager:
 
         except Exception as e:
             logger.error(f"Error getting insights data: {e}")
-        return insights
+        return insights
