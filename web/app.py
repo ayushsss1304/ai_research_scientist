@@ -20,6 +20,7 @@ from knowledge_graph.kg_manager import KnowledgeGraphManager
 from pdf_processing.pdf_processor import PDFProcessor
 from research_gap.deep_research import DeepResearchAnalyzer
 from storage.research_store import ResearchStore
+from rag_pipeline.openrouter_chatbot import OpenRouterRAGChatbot
 
 # The local RAG stack pulls in PyTorch and a locally running Ollama server.
 # Keep it optional so the cloud app can start without those local-only services.
@@ -105,7 +106,8 @@ def get_kg_manager():
             kg_manager = KnowledgeGraphManager(
                 uri=uri,
                 user=config.NEO4J_USER,
-                password=password
+                password=password,
+                database=getattr(config, 'NEO4J_DATABASE', '')
             )
         except Exception as e:
             logger.warning(f"KG not available: {e}")
@@ -113,15 +115,23 @@ def get_kg_manager():
 
 def get_rag_chatbot():
     global rag_chatbot
-    if not getattr(config, 'ENABLE_RAG_CHATBOT', True) or OllamaRAGChatbot is None:
-        return None
     if rag_chatbot is None:
         try:
-            rag_chatbot = OllamaRAGChatbot(
-                model=os.getenv('OLLAMA_MODEL', 'llama3'),
-                ollama_url=os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434'),
-                storage_dir=os.path.join(getattr(config, 'RUNTIME_DIR', '.'), 'rag_storage_web')
-            )
+            storage_dir = os.path.join(getattr(config, 'RUNTIME_DIR', '.'), 'rag_storage_web')
+            openrouter_key = os.getenv('OPENROUTER_API_KEY', '')
+            if openrouter_key:
+                rag_chatbot = OpenRouterRAGChatbot(
+                    api_key=openrouter_key,
+                    model=os.getenv('OPENROUTER_MODEL', 'openrouter/free'),
+                    storage_dir=storage_dir,
+                    site_url=os.getenv('APP_URL', 'https://ai-research-scientist-rho.vercel.app')
+                )
+            elif getattr(config, 'ENABLE_RAG_CHATBOT', True) and OllamaRAGChatbot is not None:
+                rag_chatbot = OllamaRAGChatbot(
+                    model=os.getenv('OLLAMA_MODEL', 'llama3'),
+                    ollama_url=os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434'),
+                    storage_dir=storage_dir
+                )
         except Exception as e:
             logger.warning(f"RAG not available: {e}")
     return rag_chatbot
@@ -738,7 +748,7 @@ def rag_chat():
         if not chatbot:
             return jsonify({
                 'success': False,
-                'error': 'RAG not available. Make sure Ollama is running.'
+                'error': 'AI chat is not configured.'
             }), 500
         
         response = chatbot.chat(
@@ -888,7 +898,7 @@ def analyze_trends():
 
 @app.route('/api/papers/summarize', methods=['POST'])
 def summarize_paper():
-    """Auto-summarize a paper abstract using Ollama"""
+    """Auto-summarize a paper abstract using the configured AI provider."""
     try:
         data = request.json
         abstract = data.get('abstract', '')
@@ -900,7 +910,7 @@ def summarize_paper():
         if not chatbot:
             return jsonify({
                 'success': False,
-                'error': 'Ollama not available. Make sure Ollama is running.'
+                'error': 'AI provider is not configured.'
             }), 500
         
         prompt = f"Summarize this research paper abstract in 2-3 concise sentences. Focus on the key contribution and findings:\n\n{abstract}"
